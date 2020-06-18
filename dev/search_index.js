@@ -1,0 +1,3 @@
+var documenterSearchIndex = {"docs":
+[{"location":"#","page":"-","title":"-","text":"Modules = [QuantumStatistics.Green]","category":"page"},{"location":"#QuantumStatistics.Green.bareFermi-Union{Tuple{T}, Tuple{T,T,T}} where T<:AbstractFloat","page":"-","title":"QuantumStatistics.Green.bareFermi","text":"bareFermi(β, τ, ε, [, scale])\n\nCompute the bare fermionic Green's function. Assume k_B=hbar=1\n\ng(τ0) = e^-ετ(1+e^-βε) g(τ0) = -e^-ετ(1+e^βε)\n\nArguments\n\nβ: the inverse temperature \nτ: the imaginary time, must be (-β, β]\nε: dispersion minus chemical potential: E_k-μ\n\n\n\n\n\n","category":"method"}]
+}
