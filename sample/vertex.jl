@@ -1,7 +1,7 @@
 using Distributed
 
-const Ncpu = 1
-const totalStep = 1e7
+const Ncpu = 4
+const totalStep = 1e9
 const Repeat = 4
 
 addprocs(Ncpu)
@@ -12,7 +12,7 @@ addprocs(Ncpu)
 @everywhere const kF, m = 1.919, 0.5
 @everywhere const β = 25.0 / kF^2
 
-@everywhere const Nk,Nt = 8, 8
+@everywhere const Nk,Nt = 32, 32
 @everywhere const extQ = [@SVector [q, 0.0, 0.0] for q in range(0.0, stop=3.0 * kF, length=Nk)]
 @everywhere const extT = range(0.0, stop=β, length=Nt)
 
@@ -115,7 +115,7 @@ end
 
     MonteCarlo.montecarlo(config, integrand, measure)
 
-    return obs2 / sum(obs1) * ExtQ.size * ExtT.size
+    return obs2 / sum(obs1) * ExtQ.size^2 * ExtT.size ^2
 end
 
 function run(repeat, totalStep)

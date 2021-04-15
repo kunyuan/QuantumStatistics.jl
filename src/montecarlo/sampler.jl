@@ -251,7 +251,7 @@ Propose to shift the old theta to new theta, both in [0, 2π), return proposal p
     if x < 1.0 / 3
         theta[idx] = theta[idx] + 2 * theta.λ * (rand(rng) - 0.5)
     elseif x < 2.0 / 3
-        theta[idx] = 2π - theta[idx]
+        theta[idx] = π - theta[idx]
     else
         theta[idx] = rand(rng) * 2π
     end
