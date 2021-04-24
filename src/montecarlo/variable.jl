@@ -33,15 +33,19 @@ mutable struct Angle <: Variable
     λ::Float64
     function Angle(λ=0.5, size=MaxOrder)
         theta = [π]
-        return new(theta,λ)
+        return new(theta, λ)
     end
 end
 
 
 mutable struct TauPair <: Variable
-    data::Vector{Float64}
+    data::Vector{MVector{2,Float64}}
     λ::Float64
     β::Float64
+    function TauPair(β=1.0, λ=0.5, size=MaxOrder)
+        t = [@MVector [β / 3.0, β / 2.0] for i = 1:size]
+        return new(t, λ, β)
+    end
 end
 
 mutable struct Discrete <: Variable

@@ -47,10 +47,9 @@ function barycheb(n, x, f, wc, xc)
 
     num, den = 0.0, 0.0
     for j in 1:n
-        dif = x - xc[j]
-        q = wc[j] / dif
-        num = num + q * f[j]
-        den = den + q
+        q = wc[j] / (x - xc[j])
+        num += q * f[j]
+        den += q
     end
     return num / den
 end

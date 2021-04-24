@@ -15,7 +15,7 @@ Compute the imaginary-time kernel of different type.
 
 # Arguments
 - `type`: symbol :fermi, :bose, :corr
-- `τ`: the imaginary time, must be (-1, 1]
+- `τ`: the imaginary time, must be (-β, β]
 - `ω`: frequency
 - `β = 1.0`: the inverse temperature 
 """
@@ -24,6 +24,8 @@ Compute the imaginary-time kernel of different type.
         return kernelFermiT(τ, ω, β)
     elseif type == :bose
         return kernelBoseT(τ, ω, β)
+    elseif type == :corr
+        return kernelCorrT(τ, ω, β)
     else
         @error "Type $type      is not implemented!"
     end
@@ -32,11 +34,11 @@ end
     kernelT(type::Symbol, τGrid::Vector{T}, ωGrid::Vector{T}, β::T=1.0) where {T<:AbstractFloat}
 Compute kernel with given τ and ω grids.
 """
-function kernelT(type::Symbol, τGrid::Vector{T}, ωGrid::Vector{T}, β=T(1)) where {T <: AbstractFloat}
+function kernelT(type::Symbol, τGrid::AbstractVector{T}, ωGrid::AbstractVector{T}, β=T(1)) where {T <: AbstractFloat}
     kernel = zeros(T, (length(τGrid), length(ωGrid)))
     for (τi, τ) in enumerate(τGrid)
         for (ωi, ω) in enumerate(ωGrid)
-            kernel[τi, ωi] = kernelT(:fermi, τ, ω, β)
+            kernel[τi, ωi] = kernelT(type, τ, ω, β)
         end
     end
     return kernel
@@ -48,11 +50,11 @@ end
 
 Compute the imaginary-time fermionic kernel.  Machine accuracy ~eps(g) is guaranteed``
 ```math
-g(τ>0) = e^{-ωτ}/(1+e^{-ω}), g(τ≤0) = -e^{-ωτ}/(1+e^{ω})
+g(τ>0) = e^{-ωτ}/(1+e^{-ωβ}), g(τ≤0) = -e^{-ωτ}/(1+e^{ωβ})
 ```
 
 # Arguments
-- `τ`: the imaginary time, must be (-1, 1]
+- `τ`: the imaginary time, must be (-β, β]
 - `ω`: frequency
 - `β = 1.0`: the inverse temperature 
 """
@@ -61,9 +63,8 @@ g(τ>0) = e^{-ωτ}/(1+e^{-ω}), g(τ≤0) = -e^{-ωτ}/(1+e^{ω})
     if τ == T(0.0)
         τ = -eps(T)
     end
-    G = sign(τ)
-        if τ > T(0.0)
-            if ω > T(0.0)
+    if τ > T(0.0)
+        if ω > T(0.0)
             return exp(-ω * τ) / (1 + exp(-ω * β))
         else
             return exp(ω * (β - τ)) / (1 + exp(ω * β))
@@ -82,11 +83,11 @@ end
 
 Compute the imaginary-time bosonic kernel. Machine accuracy ~eps(g) is guaranteed``
 ```math
-g(τ>0) = e^{-ωτ}/(1+e^{-ω}), g(τ≤0) = -e^{-ωτ}/(1+e^{ω})
+g(τ>0) = e^{-ωτ}/(1-e^{-ωβ}), g(τ≤0) = -e^{-ωτ}/(1-e^{ωβ})
 ```
 
 # Arguments
-- `τ`: the imaginary time, must be (-1, 1]
+- `τ`: the imaginary time, must be (-β, β]
 - `ω`: frequency
 - `β = 1.0`: the inverse temperature 
 """
@@ -95,7 +96,7 @@ g(τ>0) = e^{-ωτ}/(1+e^{-ω}), g(τ≤0) = -e^{-ωτ}/(1+e^{ω})
     if τ == T(0.0)
         τ = -eps(T)
     end
-    G = sign(τ)
+
     if τ > T(0.0)
         if ω > T(0.0)
             # expm1(x)=exp(x)-1 fixes the accuracy for x-->0^+
@@ -111,31 +112,26 @@ g(τ>0) = e^{-ωτ}/(1+e^{-ω}), g(τ≤0) = -e^{-ωτ}/(1+e^{ω})
         end
     end
 end
-# @inline function kernelBoseT(τ::T, ω::T, β::T=1.0) where {T <: AbstractFloat}
-#     (-β < τ <= β) || error("τ must be (-β, β]")
-#     if τ == T(0.0)
-#         τ = -eps(T)
-#     end
-#     if τ < T(0.0)
-#         τ += β
-#     end
-#     # if -eps(T) < ω <eps(T) #ω->0 makes the kernel diverge
-#     #     return 0.0
-#     # end
-#     x = ω * β / 2
-#     y = 2τ / β - 1
-#     if -T(100.0) < x < T(100.0)
-#         G = exp(-x * y) / (2 * sinh(x))
-#     elseif x >= T(100.0)
-#         G = exp(-x * (y + 1))
-#     else # x<=-100.0
-#         G = -exp(x * (1 - y))
-#     end
-#     if !isfinite(G)
-#         throw(DomainError(-1, "Got $G for the parameter $τ, $ω and $β"))
-#     end
-#     return G
-# end
+
+"""
+    kernelCorrT(τ, ω, β=1.0)
+
+Compute the imaginary-time kernel for correlation function ``⟨O(τ)O(0)⟩``. Machine accuracy ~eps(C) is guaranteed``
+```math
+K(τ) = e^{-ω|τ|}+e^{-ω(β-|τ|)}
+```
+
+# Arguments
+- `τ`: the imaginary time, must be (-β, β]
+- `ω`: frequency
+- `β = 1.0`: the inverse temperature 
+"""
+@inline function kernelCorrT(τ::T, ω::T, β=T(1)) where {T <: AbstractFloat}
+    (-β < τ <= β) || error("τ must be (-β, β]")
+    τ=abs(τ)
+    return exp(-ω*τ)+exp(-ω*(β-τ))
+end
+
 
 """
     kernelΩ(type, n, ω, β=1.0)
@@ -153,8 +149,10 @@ Compute the imaginary-time kernel of different type. Assume ``k_B T/\\hbar=1``
         return kernelFermiΩ(n, ω, β)
     elseif type == :bose
         return kernelBoseΩ(n, ω, β)
+    elseif type == :corr
+        return kernelCorrΩ(n, ω, β)
     else
-    @error "Type $type      is not implemented!"
+    @error "Type $type is not implemented!"
     end
 end
 
@@ -166,7 +164,7 @@ function kernelΩ(type::Symbol, nGrid::Vector{Int}, ωGrid::Vector{T}, β=T(1)) 
     kernel = zeros(Complex{T}, (length(nGrid), length(ωGrid)))
     for (ni, n) in enumerate(nGrid)
         for (ωi, ω) in enumerate(ωGrid)
-        kernel[ni, ωi] = kernelΩ(:fermi, n, ω, β)
+        kernel[ni, ωi] = kernelΩ(type, n, ω, β)
         end
     end
     return kernel
@@ -218,6 +216,39 @@ where ``ω_n=2nπ/β``. The convention here is consist with the book "Quantum Ma
 end
 
 """
+    kernelCorrΩ(n::Int, ω::T, β::T) where {T <: AbstractFloat}
+
+Compute the Matsubara-frequency kernel for a correlator ``⟨O(τ)O(0)⟩_{iω_n}``.
+```math
+K(iω_n) = \\frac{2ω}{ω^2+ω_n^2}(1-e^{-ωβ}),
+```
+where ``ω_n=2nπ/β``. The convention here is consist with the book "Quantum Many-particle Systems" by J. Negele and H. Orland, Page 95
+
+# Arguments
+- `n`: index of the Matsubara frequency
+- `ω`: energy 
+- `β`: the inverse temperature 
+"""
+@inline function kernelCorrΩ(n::Int, ω::T, β=T(1)) where {T <: AbstractFloat}
+    # Matsurbara-frequency correlator
+    if ω<T(0.0)
+        throw(DomainError("real frequency should be positive!"))
+    end
+    x=ω*β
+    if n==0 && x<1.0e-5
+        K = β*(2-x+x^2/3) #2β*(1-e^{-x})/x
+    else
+        ω_n = 2n * π / β
+        # expm1(x)=exp(x)-1 fixes the accuracy for x-->0^+
+        K = 2ω/(ω^2+ω_n^2)*(-expm1(-x))
+    end
+    if !isfinite(K)
+        throw(DomainError(-1, "Got $K for the parameter $n, $ω and $β"))
+    end
+    return K
+end
+
+"""
     density(type, ω, β=1.0)
 
 Compute the imaginary-time kernel of different type. Assume ``k_B T/\\hbar=1``
@@ -242,7 +273,7 @@ fermiDirac(ω)
 
 Compute the Fermi Dirac function. Assume ``k_B T/\\hbar=1``
 ```math
-f(ω) = 1/(1+e^{-ω})
+f(ω) = 1/(e^{ωβ}+1)
 ```
 
 # Arguments
@@ -265,7 +296,7 @@ boseEinstein(ω)
 
 Compute the Fermi Dirac function. Assume ``k_B T/\\hbar=1``
 ```math
-f(ω) = 1/(1-e^{-ω})
+f(ω) = 1/(e^{ωβ}-1)
 ```
 
 # Arguments

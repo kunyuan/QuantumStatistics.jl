@@ -67,8 +67,8 @@ struct Log{T,SIZE,SEG} # create a log grid of the type T with SIZE grids and SEG
             end
         end
         head, tail = grid[1], grid[end]
-        isopen[1] && (grid[1] += eps(T))
-        isopen[2] && (grid[end] -= eps(T))
+        isopen[1] && (grid[1] += eps(T) * 1e4)
+        isopen[2] && (grid[end] -= eps(T) * 1e4)
         checkOrder(grid)
         return new{T,SIZE,SEG}(grid, SIZE, head, tail, segment, coeff, isopen)
     end

@@ -70,7 +70,7 @@ function changeVar(config, integrand)
     var = config.var[vi]
     (curr.nvar[vi] <= 0) && return # return if the var number is less than 1
     idx = rand(config.rng, 1:curr.nvar[vi]) # randomly choose one var to update
-    oldvar = var[idx]
+    oldvar = copy(var[idx])
     prop = shift!(var, idx, config.rng)
 
     currAbsWeight = config.absWeight

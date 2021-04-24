@@ -161,7 +161,7 @@ Propose to generate new tau (uniformly) randomly in [0, β), return proposal pro
 
 # Arguments
 - `T`:  Tau variable
-- `idx`: T.t[idx] will be updated
+- `idx`: T.data[idx] will be updated
 """
 @inline function create!(T::Tau, idx::Int, rng=RNG)
     T[idx] = rand(rng) * T.β
@@ -175,7 +175,7 @@ Propose to remove old tau in [0, β), return proposal probability
 
 # Arguments
 - `T`:  Tau variable
-- `idx`: T.t[idx] will be updated
+- `idx`: T.data[idx] will be updated
 """
 @inline function remove(T::Tau, idx::Int, rng=RNG)
     return 1.0 / T.β
@@ -184,11 +184,11 @@ end
 """
     shift!(T::Tau, idx::Int, rng=GLOBAL_RNG)
 
-Propose to shift the old tau to new tau, both in [0, β), return proposal probability
+Propose to shift an existing tau to a new tau, both in [0, β), return proposal probability
 
 # Arguments
 - `T`:  Tau variable
-- `idx`: T.t[idx] will be updated
+- `idx`: T.data[idx] will be updated
 """
 @inline function shift!(T::Tau, idx::Int, rng=RNG)
     x = rand(rng)
@@ -204,9 +204,75 @@ Propose to shift the old tau to new tau, both in [0, β), return proposal probab
         T[idx] += T.β
     elseif T[idx] > T.β
         T[idx] -= T.β
+end
+
+return 1.0
+end
+
+"""
+    create!(T::TauPair, idx::Int, rng=GLOBAL_RNG)
+
+Propose to generate a new pair of tau (uniformly) randomly in [0, β), return proposal probability
+
+# Arguments
+- `T`:  TauPair variable
+- `idx`: T.data[idx] will be updated
+"""
+@inline function create!(T::TauPair, idx::Int, rng=RNG)
+    T[idx][1] = rand(rng) * T.β
+    T[idx][2] = rand(rng) * T.β
+    return T.β * T.β
+end
+
+"""
+    remove(T::TauPair, idx::Int, rng=GLOBAL_RNG)
+
+Propose to remove an existing pair of tau in [0, β), return proposal probability
+
+# Arguments
+- `T`:  Tau variable
+- `idx`: T.data[idx] will be updated
+"""
+@inline function remove(T::TauPair, idx::Int, rng=RNG)
+return 1.0 / T.β / T.β
+end
+
+"""
+    shift!(T::TauPair, idx::Int, rng=GLOBAL_RNG)
+
+Propose to shift an existing tau pair to a new tau pair, both in [0, β), return proposal probability
+
+# Arguments
+- `T`:  Tau variable
+- `idx`: T.t[idx] will be updated
+"""
+@inline function shift!(T::TauPair, idx::Int, rng=RNG)
+    x = rand(rng)
+    if x < 1.0 / 3
+        T[idx][1] += 2 * T.λ * (rand(rng) - 0.5)
+        T[idx][2] += 2 * T.λ * (rand(rng) - 0.5)
+    elseif x < 2.0 / 3
+        T[idx][1] = T.β - T[idx][1]
+        T[idx][2] = T.β - T[idx][2]
+    else
+        T[idx][1] = rand(rng) * T.β
+        T[idx][2] = rand(rng) * T.β
+    end
+
+    if T[idx][1] < 0.0
+    T[idx][1] += T.β
+    elseif T[idx][1] > T.β
+    T[idx][1] -= T.β
+    end
+
+    if T[idx][2] < 0.0
+    T[idx][2] += T.β
+    elseif T[idx][2] > T.β
+    T[idx][2] -= T.β
     end
 
     return 1.0
+# return 0.0
 end
 
 
@@ -221,7 +287,7 @@ Propose to generate new angle (uniformly) randomly in [0, 2π), return proposal 
 """
 @inline function create!(theta::Angle, idx::Int, rng=RNG)
     theta[idx] = rand(rng) * 2π
-    return 2π
+return 2π
 end
 
 """
@@ -234,7 +300,7 @@ Propose to remove old theta in [0, 2π), return proposal probability
 - `idx`: theta.t[idx] will be updated
 """
 @inline function remove(theta::Angle, idx::Int, rng=RNG)
-    return 1.0 / 2.0 /π
+    return 1.0 / 2.0 / π
 end
 
 """
@@ -257,9 +323,9 @@ Propose to shift the old theta to new theta, both in [0, 2π), return proposal p
     end
 
     if theta[idx] < 0.0
-        theta[idx] += 2π
+    theta[idx] += 2π
     elseif theta[idx] > 2π
-        theta[idx] -= 2π
+    theta[idx] -= 2π
     end
 
     return 1.0

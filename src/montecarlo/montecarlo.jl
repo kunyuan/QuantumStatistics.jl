@@ -15,21 +15,21 @@ include("variable.jl")
 include("sampler.jl")
 include("updates.jl")
 
-function montecarlo(config::Configuration, integrand::Function, measure::Function; timer=nothing)
+function montecarlo(config::Configuration, integrand::Function, measure::Function; timer=[], print=true)
     ##############  initialization  ################################
 
     # don't forget to initialize the diagram weight
-    config.absWeight = integrand(config)
+    config.absWeight = abs(integrand(config))
 
-    if timer === nothing
+    if print
         printTime = 10
-        timer = [StopWatch(printTime, printStatus)]
+        push!(timer, StopWatch(printTime, printStatus))
     end
 
     updates = [increaseOrder, decreaseOrder]
     for var in config.var
         # changeVar should be call more often if there are more variables
-        append!(updates, [changeVar, ])
+        push!(updates, changeVar)
     end
 
     for diag in config.diagrams
@@ -39,7 +39,9 @@ function montecarlo(config::Configuration, integrand::Function, measure::Functio
     end
 
     ########### MC simulation ##################################
-    printstyled("PID $(config.pid) Start Simulation ...\n", color=:red)
+    if (print)
+        printstyled("PID $(config.pid) Start Simulation ...\n", color=:red)
+    end
     startTime = time()
 
     for i = 1:config.totalStep
@@ -58,8 +60,10 @@ function montecarlo(config::Configuration, integrand::Function, measure::Functio
         end
     end
 
-    printStatus(config)
-    printstyled("PID $(config.pid) End Simulation. Cost $(time() - startTime) seconds.\n\n", color=:red)
+    if (print)
+        printStatus(config)
+        printstyled("PID $(config.pid) End Simulation. Cost $(time() - startTime) seconds.\n\n", color=:red)
+    end
 end
 
 function reweight(config)

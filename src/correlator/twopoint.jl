@@ -2,77 +2,125 @@
 Provide N-body response and correlation functions
 """
 module TwoPoint
-export fermiT, fermiΩ
-include("spectral.jl")
-using .Spectral
+
+export freePropagatorT, freePropagatorΩ
+export freePolarizationT
+using ..Spectral
+using Cuba
 
 """
-    fermiT(τ, ϵ, β = 1.0)
+    freePropagatorT(type, τ, ω, β)
 
-Compute the bare fermionic Green's function. Assume ``k_B=\\hbar=1``
-```math
-g(τ>0) = e^{-ϵτ}/(1+e^{-βϵ}), g(τ≤0) = -e^{-ϵτ}/(1+e^{βϵ})
-```
+Imaginary-time propagator.
 
 # Arguments
+- `type`: symbol :fermi, :bose
 - `τ`: the imaginary time, must be (-β, β]
-- `ϵ`: dispersion minus chemical potential: ``E_k-μ``
-       it could also be the real frequency ω if the bare Green's function is used as the kernel in the Lehmann representation 
+- `ω`: dispersion ϵ_k-μ
 - `β = 1.0`: the inverse temperature 
 """
-@inline function fermiT(τ::T, ϵ::T, β::T=1.0) where {T <: AbstractFloat}
-    if τ <= 0.0 || τ > eps() * β
-        return kernelFermiT(τ / β, ϵ * β)
-    else # 0<τ<=eps()*β
-        return kernelFermiT(eps(), ϵ * β)
+@inline function freePropagatorT(type, τ, ω, β)
+    return kernelT(type, τ, ω, β)
+end
+
+"""
+    freePropagatorΩ(type, n, ω, β=1.0)
+
+Matsubara-frequency kernel of different type
+
+# Arguments
+- `type`: symbol :fermi, :bose, :corr
+- `n`: index of the Matsubara frequency
+- `ω`: dispersion ϵ_k-μ
+- `β`: the inverse temperature 
+"""
+@inline function freePropagatorΩ(type, n::Int, ω, β)
+    return kernelΩ(type, n, ω, β)
+end
+
+@inline function freeFermiDoS(dim, kF, m, spin)
+    if dim == 3
+        return spin * m * kF / 2 / π^2
+    else
+        error("Dimension $dim not implemented!")
+        # return spin/4/π
     end
 end
 
-"""
-    fermiΩ(n::Int, ε::T, β::T) where {T <: AbstractFloat}
+# function LindhardΩn(dim, q, ω, β, kF, m, spin)
+#     q < 0.0 && (q = -q) # Lindhard function is q symmetric
 
-Compute the bare Green's function for a given Matsubara frequency.
-```math
-g(iω_n) = -1/(iω_n-ε),
-```
-where ``ω_n=(2n+1)π/β``. The convention here is consist with the book "Quantum Many-particle Systems" by J. Negele and H. Orland, Page 95
+#     q2 = q^2
+#     kFq = 2kF * q
+#     ωn = 2π * n / β
+#     D = 1 / (8kF * q)
+#     NF = freeFermiDoS(dim, kF, m, spin)
 
-# Arguments
-- `n`: index of the Matsubara frequency
-- `ε`: dispersion minus chemical potential: ``E_k-μ``; 
-       it could also be the real frequency ω if the bare Green's function is used as the kernel in the Lehmann representation 
-- `β`: the inverse temperature 
-"""
-@inline function fermiΩ(n::Int, ε::T, β::T) where {T <: AbstractFloat}
-    # fermionic Matsurbara frequency
-    ω_n = (2 * n + 1) * π / β
-    G = -1.0 / (ω_n * im - ε)
-    return T(G)
-end
-
-# """
-#     FermiDirac(β, ε)
-
-# Compute the Fermi Dirac function. Assume ``k_B=\\hbar=1``
-# ```math
-# f(ϵ) = 1/(1+e^{-βε})
-# ```
-
-# # Arguments
-# - `β`: the inverse temperature 
-# - `ε`: dispersion minus chemical potential: ``E_k-μ``
-#        it could also be the real frequency ω if the bare Green's function is used as the kernel in the Lehmann representation 
-# """
-# @inline function FermiDirac(β::T, ε::T) where {T<:AbstractFloat}
-#     x = β * ε
-#     if -T(50.0) < x < T(50.0)
-#         return 1.0 / (1.0 + exp(x))
-#     elseif x >= T(50.0)
-#         return exp(-x)
-#     else # x<=-50.0
-#         return 1.0 - exp(x)
-#     end
+#     # if ωn<=20*(q2+kFq)/(2m)
+#         # careful for small q or large w
+#     iw = ωn * im
+#     wmq2 = iw * 2m - q^2
+#     wpq2 = iw * 2m + q^2
+#     C1 = log(wmq2 - kFq) - log(wmq2 + kFq)
+#     C2 = log(wpq2 - kFq) - log(wpq2 + kFq)
+#     res = real(-NF / 2 * (1 - D * (wmq2^2 / q^2 - 4 * kF^2) * C1 + D * (wpq2^2 / q^2 - 4 * kF^2) * C2))
+#     # else
+#     #     b2 = q2 * ( q2 + 12/5 * kF^2 )
+#     #     c = 2*EF*kF*q2/(3*pi**2)
+#     #     res = -c/(w**2 + b2)
+#     # end
+#     return res
 # end
 
+"""
+    LindhardΩnFiniteTemperature(dim::Int, q::T, n::Int, kF::T, β::T, m::T, spin) where {T <: AbstractFloat}
 
+Compute the polarization function of free electrons at a given frequency. Relative Accuracy is about ~ 1e-6
+
+# Arguments
+- `dim`: dimension
+- `q`: external momentum, q<1e-4 will be treated as q=0 
+- `n`: externel Matsubara frequency, ωn=2π*n/β
+- `kF`: Fermi momentum 
+- `β`: inverse temperature
+- `m`: mass
+- `spin` : number of spins
+"""
+@inline function LindhardΩnFiniteTemperature(dim::Int, q::T, n::Int, kF::T, β::T, m::T, spin) where {T <: AbstractFloat}
+    if q < 0.0
+        q = -q
+    end
+
+    if q / kF < 1.0e-10
+        q = 1.0e-10 * kF
+    end
+
+    function polar(k)
+        phase = T(1.0)
+        if dim == 3
+            phase *= k^2 / (4π^2)
+        else
+            error("not implemented")
+        end
+        ω = 2π * n / β
+        ϵ = β * (k^2 - kF^2) / (2m)
+
+        p = phase * fermiDirac(ϵ) * m / k / q * log(((q^2 - 2k * q)^2 + 4m^2 * ω^2) / ((q^2 + 2k * q)^2 + 4m^2 * ω^2)) * spin
+
+        if isnan(p)
+            println("warning: integrand at ω=$ω, q=$q, k=$k is NaN!")
+        end
+        # println(p)
+        return p
+    end
+
+    function integrand(x, f)
+        # x[1]:k
+        f[1] = polar(x[1] / (1 - x[1])) / (1 - x[1])^2
+    end
+
+    result, err = Cuba.cuhre(integrand, 2, 1, rtol=1.0e-10)
+    # result, err = Cuba.vegas(integrand, 1, 1, rtol=rtol)
+    return result[1], err[1]
+end
 end
