@@ -2,17 +2,17 @@ using Distributed
 
 const Ncpu = 4
 const totalStep = 1e9
-const Repeat = 4
+const Repeat = 9
 
 addprocs(Ncpu)
 
-@everywhere using QuantumStatistics, LinearAlgebra, Random, Printf, StaticArrays, Statistics, BenchmarkTools, InteractiveUtils, Parameters
+@everywhere using QuantumStatistics, LinearAlgebra, Random, Printf, StaticArrays, Statistics, BenchmarkTools, InteractiveUtils, Parameters, DelimitedFiles
 
 # claim all globals to be constant, otherwise, global variables could impact the efficiency
 @everywhere const kF, m = 1.919, 0.5
 @everywhere const β = 25.0 / kF^2
 
-@everywhere const Nk,Nt = 32, 32
+@everywhere const Nk,Nt = 32,32
 @everywhere const extQ = [@SVector [q, 0.0, 0.0] for q in range(0.0, stop=3.0 * kF, length=Nk)]
 @everywhere const extT = range(0.0, stop=β, length=Nt)
 
@@ -132,6 +132,9 @@ function run(repeat, totalStep)
         t = t[1]
         @printf("%10.6f  %10.6f ± %10.6f\n", t, obs[idx], obserr[idx])
     end
+
+    writedlm("gamma.csv",obs,",")
+
 
 end
 
