@@ -1,105 +1,63 @@
-
-function Sphere1(totalstep, pid)
-    obs1 = 0.0
-    obs2 = 0.0
-
+function Sphere1(totalstep)
     function integrand(config)
-        if config.curr.id == 1
-            return 1.0
-        else
-            X = config.var[1]
-            if X[1]^2 + X[2]^2 < 1.0
-                return 1.0
-            else
-                return 0.0
-            end
+        X = config.var[1]
+        if (X[1]^2 + X[2]^2 < 1.0) 
+            return 1.0 
+        else 
+            return 0.0
         end
     end
 
     function measure(config)
-        diag = config.curr
-        factor = 1.0 / config.absWeight / diag.reWeightFactor
-        if diag.id == 1
-            obs1 += factor
-        elseif diag.id == 2
-            weight = integrand(config)
-            obs2 += weight * factor
-        else
-            error("Not implemented!")
-        end
+        factor = 1.0 / config.reweight[config.curr]
+        weight = integrand(config)
+        config.observable += weight / abs(weight) * factor
     end
-
-    rng = MersenneTwister(pid)
 
     T = MonteCarlo.Tau(1.0, 1.0 / 2.0)
-    diag1 = MonteCarlo.Diagram(1, 0, [0,]) # id, order, [T num, ]
-    diag2 = MonteCarlo.Diagram(2, 1, [2,]) # id, order, [T num, ]
+    dof = [[2, ],] # number of T variable for the normalization and the integrand
+    config = MonteCarlo.Configuration(totalstep, (T,), dof, 0.0)
+    avg, err = MonteCarlo.sample(config, integrand, measure; Nblock=64, print=-1)
+    # avg, err = MonteCarlo.sample(totalstep, (T,), dof, [0.0, ], integrand, measure; Nblock=64, print=-1)
 
-    config = MonteCarlo.Configuration(totalstep, (diag1, diag2), (T,); pid=pid, rng=rng)
-    MonteCarlo.montecarlo(config, (x) -> abs(integrand(x)), measure, print=false)
-
-    return obs2 / obs1
+    return avg, err
 end
 
-function Sphere2(totalstep, pid)
-    obs1 = 0.0
-    obs2 = 0.0
-
+function Sphere2(totalstep)
     function integrand(config)
-        if config.curr.id == 1
-            return 1.0
-        else
-            X = config.var[1]
-            if X[1][1]^2 + X[1][2]^2 < 1.0
-                return 1.0
-            else
-                return 0.0
-            end
+        X = config.var[1]
+        if (X[1][1]^2 + X[1][2]^2 < 1.0) 
+            return 1.0 
+        else 
+            return 0.0
         end
     end
 
     function measure(config)
-        diag = config.curr
-        factor = 1.0 / config.absWeight / diag.reWeightFactor
-        if diag.id == 1
-            obs1 += factor
-        elseif diag.id == 2
-            weight = integrand(config)
-            obs2 += weight * factor
-        else
-            error("Not implemented!")
-        end
+        factor = 1.0 / config.reweight[config.curr]
+        weight = integrand(config)
+        config.observable += weight / abs(weight) * factor
     end
 
-    rng = MersenneTwister(pid)
-
     T = MonteCarlo.TauPair(1.0, 1.0 / 2.0)
-    diag1 = MonteCarlo.Diagram(1, 0, [0,]) # id, order, [T num, ]
-    diag2 = MonteCarlo.Diagram(2, 1, [1,]) # id, order, [T num, ]
+    dof = [[1, ],] # number of T variable for the normalization and the integrand
+    config = MonteCarlo.Configuration(totalstep, (T,), dof, 0.0)
+    avg, err = MonteCarlo.sample(config, integrand, measure; Nblock=64, print=-1)
+    # avg, err = MonteCarlo.sample(totalstep, (T,), dof, [0.0, ], integrand, measure; Nblock=64, print=-1)
 
-    config = MonteCarlo.Configuration(totalstep, (diag1, diag2), (T,); pid=pid, rng=rng)
-    MonteCarlo.montecarlo(config, integrand, measure, print=false)
-
-    return obs2 / obs1
+    return avg, err
 end
 
 @testset "MonteCarlo Sampler" begin
-    repeat = 64
-    totalStep = 100000
+    totalStep = 1000_000
 
-    observable = map((x) -> Sphere1(totalStep, rand(1:100000)), 1:repeat)
+    avg, err = Sphere1(totalStep)
+    println("MC integration 1: $avg ± $err (exact: $(π / 4.0))")
+    @test abs(avg - π / 4.0) < 5.0 * err
+    # @test abs(avg[1] - π / 4.0) < 5.0 * err[1]
 
-    obs = mean(observable)
-    err = std(observable) / sqrt(length(observable))
-
-    println("MC integration 1: $obs ± $err (exact: $(π / 4.0))")
-    @test abs(obs - π / 4.0) < 5.0 * err
-
-    observable = map((x) -> Sphere2(totalStep, rand(1:100000)), 1:repeat)
-
-    obs = mean(observable)
-    err = std(observable) / sqrt(length(observable))
-
-    println("MC integration 2: $obs ± $err (exact: $(π / 4.0))")
-    @test abs(obs - π / 4.0) < 5.0 * err
+    avg, err = Sphere2(totalStep)
+    println("MC integration 2: $avg ± $err (exact: $(π / 4.0))")
+    @test abs(avg - π / 4.0) < 5.0 * err
+    # @test abs(avg[1] - π / 4.0) < 5.0 * err[1]
 end

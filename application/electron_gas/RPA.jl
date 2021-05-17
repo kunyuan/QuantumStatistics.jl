@@ -26,29 +26,41 @@ function dWRPA(vqinv, qgrid, τgrid, kF, β, spin, mass)
     dW0norm = similar(Π)
     for (ni, n) in enumerate(dlr.n)
         for (qi, q) in enumerate(qgrid)
-            Π[qi, ni] = TwoPoint.LindhardΩnFiniteTemperature(3, q, n, kF, β, mass, 2)[1]
+            Π[qi, ni] = TwoPoint.LindhardΩnFiniteTemperature(3, q, n, kF, β, mass, spin)[1]
         end
         dW0norm[:, ni] = @. Π[:, ni] / (vqinv - Π[:, ni])
         # println("ω_n=2π/β*$(n), Π(q=0, n=0)=$(Π[1, ni])")
+        # println("$ni  $(dW0norm[2, ni])")
     end
     dW0norm = DLR.matfreq2tau(:corr, dW0norm, dlr, τgrid, axis=2) # dW0/vq in imaginary-time representation, real-valued but in complex format
+    
+    # println(dW0norm[1, :])
+    # println(DLR.matfreq2tau(:corr, dW0norm[1, :], dlr, τgrid, axis=1))
+    # println(DLR.matfreq2tau(:corr, dW0norm[2, :], dlr, τgrid, axis=1))
+    # coeff = DLR.matfreq2dlr(:corr, dW0norm[1, :], dlr)
+    # fitted = DLR.dlr2matfreq(:corr, coeff, dlr, dlr.n)
+    # for (ni, n) in enumerate(dlr.n)
+    #     println(dW0norm[1, ni], " vs ", fitted[ni])
+    # end
     return real.(dW0norm) 
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
     using Gaston
-    kF, β, spin = 1.919, 100.0, 2
-    m, e = 0.5, sqrt(2.0) # Rydberg units
-    EF = kF^2 / (2m)
-    β = β / EF
+    include("parameter.jl")
 
     qgrid = Grid.boseK(kF, 3kF, 0.2kF, 32) 
     τgrid = Grid.tau(β, EF / 20, 128)
     # println("qGrid: ", qgrid.grid)
     println("τGrid: ", τgrid.grid)
-    vqinv = [q^2 / (4π * e^2) for q in qgrid.grid] # instantaneous interaction (Coulomb interaction)
+    vqinv = [(q^2 + mass2) / (4π * e0^2) for q in qgrid.grid] # instantaneous interaction (Coulomb interaction)
 
-    dW0norm = dWRPA(vqinv, qgrid.grid, τgrid.grid, kF, β, spin, m)
+
+    dW0norm = dWRPA(vqinv, qgrid.grid, τgrid.grid, kF, β, spin, me)
+    for (qi, q) in enumerate(qgrid.grid)
+        println("$q   $(dW0norm[qi, 1])")
+    end
+
     display(plot(qgrid.grid ./ kF, dW0norm[:, 1]))
     sleep(100)
 end

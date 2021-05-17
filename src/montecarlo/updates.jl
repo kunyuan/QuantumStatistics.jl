@@ -1,88 +1,68 @@
+function changeIntegrand(config, integrand)
+    # update to change an integrand to its neighbors. 
+    # The degrees of freedom could be increase, decrease or remain the same.
 
-function increaseOrder(config, integrand)
-    idx = rand(config.rng, 1:length(config.diagrams))
     curr = config.curr
-    new = config.diagrams[idx]
-    if (new.order != curr.order + 1)
-        return
-    end
+    new = rand(config.rng, config.neighbor[curr]) # jump to a randomly picked neighboring integrand
 
-    prop = 1.0
+    currdof, newdof = config.dof[curr], config.dof[new]
+
+    # propose probability caused by the selection of neighbors
+    prop = length(config.neighbor[curr]) / length(config.neighbor[new])
+
+    # create/remove variables if there are more/less degrees of freedom
     for vi in 1:length(config.var)
-        for pos = curr.nvar[vi] + 1:new.nvar[vi]
-            prop *= create!(config.var[vi], pos, config.rng)
-        end
-    end
-
-    currAbsWeight = config.absWeight
-
-    config.curr = new
-    newAbsWeight = abs(integrand(config))
-    R = prop * newAbsWeight * new.reWeightFactor / currAbsWeight / curr.reWeightFactor
-
-    curr.propose[1] += 1.0
-    if rand(config.rng) < R
-        curr.accept[1] += 1.0
-        config.curr = new
-        config.absWeight = newAbsWeight
-    else
-        config.curr = curr
-        # in case the user modifies config.absWeight when calculate integrand(config)
-        config.absWeight = currAbsWeight
-    end
-end
-
-function decreaseOrder(config, integrand)
-    idx = rand(config.rng, 1:length(config.diagrams))
-    new = config.diagrams[idx]
-    curr = config.curr
-
-    if (new.order != curr.order - 1)
-        return
-    end
-
-    prop = 1.0
-    for vi in 1:length(config.var)
-        for pos = new.nvar[vi] + 1:curr.nvar[vi]
-            prop *= remove(config.var[vi], pos, config.rng)
+        if (currdof[vi] < newdof[vi]) # more degrees of freedom
+            for pos = currdof[vi] + 1:newdof[vi]
+                prop *= create!(config.var[vi], pos, config.rng)
+            end
+        elseif (currdof[vi] > newdof[vi]) # less degrees of freedom
+            for pos = newdof[vi] + 1:currdof[vi]
+                prop *= remove(config.var[vi], pos, config.rng)
+            end
         end
     end
 
     config.curr = new
     currAbsWeight = config.absWeight
-    newAbsWeight = abs(integrand(config))
-    R = prop * newAbsWeight * new.reWeightFactor / currAbsWeight / curr.reWeightFactor
-    curr.propose[2] += 1.0
-    if rand(config.rng) < R
-        curr.accept[2] += 1.0
+    newAbsWeight = (new == config.norm ?  1.0 : abs(integrand(config)))
+    R = prop * newAbsWeight * config.reweight[new] / currAbsWeight / config.reweight[curr]
+
+    config.propose[1, curr, new] += 1.0
+    if rand(config.rng) < R  # accept the change
+        config.accept[1, curr, new] += 1.0
         config.absWeight = newAbsWeight
-        config.curr = new
-    else
-        # in case the user modifies config.absWeight when calculate integrand(config)
+    else # reject the change
+        config.curr = curr # reset the current diagram index
         config.absWeight = currAbsWeight
-        config.curr = curr
     end
 end
 
-function changeVar(config, integrand)
+function changeVariable(config, integrand)
+    # update to change the variables of the current diagrams
+    (config.curr == config.norm) && return
+
     curr = config.curr
-    vi = rand(config.rng, 1:length(curr.nvar))
+    currdof = config.dof[curr]
+    vi = rand(config.rng, 1:length(currdof)) # update the variable type of the index vi
     var = config.var[vi]
-    (curr.nvar[vi] <= 0) && return # return if the var number is less than 1
-    idx = rand(config.rng, 1:curr.nvar[vi]) # randomly choose one var to update
+    (currdof[vi] <= 0) && return # return if the var has zero degree of freedom
+    idx = rand(config.rng, 1:currdof[vi]) # randomly choose one var to update
     oldvar = copy(var[idx])
     prop = shift!(var, idx, config.rng)
 
-    currAbsWeight = config.absWeight
     newAbsWeight = abs(integrand(config))
+    currAbsWeight = config.absWeight
     R = prop * newAbsWeight / currAbsWeight
-    curr.propose[2 + vi] += 1.0
+
+    # curr == 2 && println("propose, $curr: old: $oldvar --> new: $(var[idx]), with R $newAbsWeight / $currAbsWeight * $prop = $R")
+    config.propose[2, curr, vi] += 1.0
     if rand(config.rng) < R
-        curr.accept[2 + vi] += 1.0
+        # curr == 2 && println("accept, $curr")
+        config.accept[2, curr, vi] += 1.0
         config.absWeight = newAbsWeight
     else
         var[idx] = oldvar
-        # in case the user modifies config.absWeight when calculate integrand(config)
         config.absWeight = currAbsWeight 
     end
 end

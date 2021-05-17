@@ -55,3 +55,5 @@ test/test_results
 *.dat
 *.txt
 docs/build/
+__pycache__
+*.pyc
