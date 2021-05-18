@@ -1,30 +1,25 @@
 # This example demonstrated how to calculate one-loop diagram of free electrons using the Monte Carlo module
 # Observable is normalized: Γ₄*N_F where N_F is the free electron density of states
 
-using Distributed
 using QuantumStatistics, LinearAlgebra, Random, Printf,  BenchmarkTools, InteractiveUtils, Parameters
 
-const Ncpu = 1 # number of workers (CPU)
-const totalStep = 1e7 # MC steps of each worker
+const Step = 1e7 # MC steps of each block
 
 include("RPA.jl") # dW0 will be only calculated once in the master, then distributed to other workers. Therefore, there is no need to import RPA.jl for all workers.
 
-addprocs(Ncpu) 
-
-@everywhere using QuantumStatistics, Parameters, Random, LinearAlgebra
-@everywhere include("parameter.jl")
-@everywhere include("interaction.jl")
+include("parameter.jl")
+include("interaction.jl")
 
 # claim all globals to be constant, otherwise, global variables could impact the efficiency
 ########################### parameters ##################################
-@everywhere const IsF = false # calculate quasiparticle interaction F or not
-@everywhere const AngSize = 16
+const IsF = false # calculate quasiparticle interaction F or not
+const AngSize = 16
 
 ########################## variables for MC integration ##################
-@everywhere const KInL = [kF, 0.0, 0.0] # incoming momentum of the left particle
-@everywhere const Qd = [0.0, 0.0, 0.0] # transfer momentum is zero in the forward scattering channel
+const KInL = [kF, 0.0, 0.0] # incoming momentum of the left particle
+const Qd = [0.0, 0.0, 0.0] # transfer momentum is zero in the forward scattering channel
 
-@everywhere struct Para{Q,T}
+struct Para{Q,T}
     extAngle::Vector{Float64}
     dW0::Matrix{Float64}
     qgrid::Q
@@ -40,7 +35,7 @@ addprocs(Ncpu)
     end
 end
 
-@everywhere function phase(tInL, tOutL, tInR, tOutR)
+function phase(tInL, tOutL, tInR, tOutR)
     if (IsF)
         return cos(π * ((tInL + tOutL) - (tInR + tOutR)));
     else
@@ -48,17 +43,9 @@ end
     end
 end
 
-@everywhere function integrand(config)
-    if config.curr == 1
-        return Weight(1.0, 0.0) # return a weight!
-    elseif config.curr == 2
-        return eval2(config)
-    else
-        error("Not implemented!")
-    end
-end
+function integrand(config)
+    @assert config.curr == 1
 
-@everywhere function eval2(config)
     T, K, Ang = config.var[1], config.var[2], config.var[3]
     k1, k2 = K[1], K[1] - Qd
     t1, t2 = T[1], T[2] # t1, t2 both have two tau variables
@@ -163,45 +150,41 @@ end
     return Weight(wd, we)
 end
 
-@everywhere function measure(config)
+function measure(config)
+    @assert config.curr == 1
+
     angidx = config.var[3][1]
     factor = 1.0 / config.reweight[config.curr]
-    if config.curr == 1
-        config.observable[1][:, angidx] .+= factor
-    elseif config.curr == 2
-        weight = integrand(config)
-        config.observable[2][:, angidx] .+= weight / abs(weight) * factor
-    else
-        error("Not implemented!")
-    end
+    weight = integrand(config)
+    config.observable[:, angidx] .+= weight / abs(weight) * factor
 end
 
-@everywhere normalize(config) = config.observable[2] / sum(config.observable[1]) * AngSize * β 
-
-function run(totalStep)
+function run(steps)
     T = MonteCarlo.TauPair(β, β / 2.0)
     K = MonteCarlo.FermiK(3, kF, 0.2 * kF, 10.0 * kF)
     Ext = MonteCarlo.Discrete(1, AngSize) # external variable is specified
 
-    dof = ([1, 0, 1], [2, 1, 1])
-    obs = (zeros(Float64, (2, AngSize)), zeros(Float64, (2, AngSize)))
+    dof = [[2, 1, 1],]
+    obs = zeros(Float64, (2, AngSize))
 
     para = Para(AngSize)
 
-    avg, std = MonteCarlo.sample(totalStep, (T, K, Ext), dof, obs, integrand, measure, normalize; para=para, print=10)
+    config = MonteCarlo.Configuration(steps, (T, K, Ext), dof, obs; para=para)
+    avg, std = MonteCarlo.sample(config, integrand, measure; print=10, Nblock=16)
 
-    NF = TwoPoint.LindhardΩnFiniteTemperature(dim, 0.0, 0, kF, β, me, spin)[1]
-    println("NF = $NF")
+    if isnothing(avg) == false
+        NF = TwoPoint.LindhardΩnFiniteTemperature(dim, 0.0, 0, kF, β, me, spin)[1]
+        println("NF = $NF")
 
-    avg = avg * NF
-    std = std * NF
+        avg .*= NF / β
+        std .*= NF / β
 
-    println(size(avg))
-    for (idx, angle) in enumerate(para.extAngle)
-        @printf("%10.6f   %10.6f ± %10.6f  %10.6f ± %10.6f\n", angle, avg[1, idx], std[1,idx], avg[2,idx], std[2,idx])
+        for (idx, angle) in enumerate(para.extAngle)
+            @printf("%10.6f   %10.6f ± %10.6f  %10.6f ± %10.6f\n", angle, avg[1, idx], std[1,idx], avg[2,idx], std[2,idx])
+        end
     end
 end
 
 # @btime run(1, 10)
-run(totalStep)
+run(Step)
 # @time run(Repeat, totalStep)
