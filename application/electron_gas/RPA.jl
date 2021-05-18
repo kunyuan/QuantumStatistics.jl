@@ -62,5 +62,5 @@ if abspath(PROGRAM_FILE) == @__FILE__
     end
 
     display(plot(qgrid.grid ./ kF, dW0norm[:, 1]))
-    sleep(100)
+    readline()
 end
