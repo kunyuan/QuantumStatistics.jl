@@ -106,12 +106,10 @@ Compute the polarization function of free electrons at a given frequency. Relati
         ϵ = β * (k^2 - kF^2) / (2m)
         Λq = (q^2 + 2k * q) / (2m)
         # println(Λq, " vs ", ω / 100.0)
-        if abs(Λq) <= abs(ω) / 100.0 && abs(q) >= eps(0.0)
+        if abs(Λq) <= abs(ω) / 100.0 && abs(q) >= eps(0.0)  # n>0
             p = spin * phase * fermiDirac(ϵ) * (-2 * q^2 / m / ω^2 + 2 * k^2 * q^4 / m^3 / ω^4)
         else
-            if q / kF < 1.0e-10
-                q = 1.0e-10 * kF
-            end
+            (q / kF < 1.0e-10) && (q = 1.0e-10 * kF) # this is for the case q=0 and n=0
             p = spin * phase * fermiDirac(ϵ) * m / k / q * log(((q^2 - 2k * q)^2 + 4m^2 * ω^2) / ((q^2 + 2k * q)^2 + 4m^2 * ω^2))
         end
 
