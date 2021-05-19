@@ -17,8 +17,7 @@ dW_0(q, iω_n)=v_q^2 Π(q, iω_n)/(1-v_q Π(q, iω_n))
 ```
 Note that this dynamic contribution ``dW_0'' diverges at small q. For this reason, this function returns ``dW_0/v_q``
 """
-function dWRPA(vqinv, qgrid, τgrid, kF, β, spin, mass)
-    @assert all(qgrid .!= 0.0)
+function dWRPA(vqinv::Function, qgrid, τgrid, kF, β, spin, mass)
     EF = kF^2 / (2mass)
     dlr = DLR.DLRGrid(:corr, 10EF, β, 1e-10) # effective interaction is a correlation function of the form <O(τ)O(0)>
     Nq, Nτ = length(qgrid), length(τgrid)
@@ -26,10 +25,21 @@ function dWRPA(vqinv, qgrid, τgrid, kF, β, spin, mass)
     dW0norm = similar(Π)
     for (ni, n) in enumerate(dlr.n)
         for (qi, q) in enumerate(qgrid)
+            if q / kF < 1.0e-4  # start losing accuracy for small q
+                q = 1.0e-4 * kF
+            end
+            vqi = vqinv(q)
+            # if abs(q) < 1.0e-10
+            #     q = 1.0e-2
+            #     vqinv[qi] = q^2 / (4π)
+            # end
             Π[qi, ni] = TwoPoint.LindhardΩnFiniteTemperature(3, q, n, kF, β, mass, spin)[1]
+            # println("Π(q=$q, n=$n)=$(Π[qi, ni])")
+            # if abs(q) <= 1.0e-10 && n != 0
+            #     dW0norm[qi, ni] = -1.0
+            # else
+            dW0norm[qi, ni] = Π[qi, ni] / (vqi - Π[qi, ni])
         end
-        dW0norm[:, ni] = @. Π[:, ni] / (vqinv - Π[:, ni])
-        # println("ω_n=2π/β*$(n), Π(q=0, n=0)=$(Π[1, ni])")
         # println("$ni  $(dW0norm[2, ni])")
     end
     dW0norm = DLR.matfreq2tau(:corr, dW0norm, dlr, τgrid, axis=2) # dW0/vq in imaginary-time representation, real-valued but in complex format
@@ -47,13 +57,16 @@ end
 
 if abspath(PROGRAM_FILE) == @__FILE__
     using Gaston
+    # using Plots
     include("parameter.jl")
 
     qgrid = Grid.boseK(kF, 3kF, 0.2kF, 32) 
+    qgrid.grid[1] = 1.0e-4 * kF
     τgrid = Grid.tau(β, EF / 20, 128)
-    # println("qGrid: ", qgrid.grid)
-    println("τGrid: ", τgrid.grid)
-    vqinv = [(q^2 + mass2) / (4π * e0^2) for q in qgrid.grid] # instantaneous interaction (Coulomb interaction)
+    println("qGrid: ", qgrid.grid)
+    # println("τGrid: ", τgrid.grid)
+    # vqinv = [(q^2 + mass2) / (4π * e0^2) for q in qgrid.grid] # instantaneous interaction (Coulomb interaction)
+    vqinv(q) = (q^2 + mass2) / (4π * e0^2) # instantaneous interaction (Coulomb interaction)
 
 
     dW0norm = dWRPA(vqinv, qgrid.grid, τgrid.grid, kF, β, spin, me)
@@ -62,5 +75,9 @@ if abspath(PROGRAM_FILE) == @__FILE__
     end
 
     display(plot(qgrid.grid ./ kF, dW0norm[:, 1]))
+    # p = plot(qgrid.grid ./ kF, dW0norm[:, 1])
+    # p = plot(τgrid.grid ./ β, dW0norm[1, :])
+    # plot!(p, τgrid.grid ./ β, dW0norm[2, :])
+    # display(p)
     readline()
 end
