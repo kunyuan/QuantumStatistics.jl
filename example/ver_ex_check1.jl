@@ -4,13 +4,12 @@
 using QuantumStatistics, LinearAlgebra, Random, Printf, BenchmarkTools, InteractiveUtils, Parameters
 # using ProfileView
 
-const Steps = 1e6
+const Steps = 1e7
 
 include("parameter.jl")
 include("../application/electron_gas/RPA.jl")
 
-const n1=0
-const n2=0
+dlr = DLR.DLRGrid(:fermi, 10*EF,β, 1e-2)
 
 const qgrid = Grid.boseKUL(kF, 6kF, 0.000001*sqrt(me^2/β/kF^2), 15,4) 
 const τgrid = Grid.tauUL(β, 0.0001, 11,4)
@@ -51,6 +50,8 @@ end
 # end
 
 function integrand(config)
+    N = config.var[3]
+    n1,n2 = dlr.n[N[1]],dlr.n[N[2]]
     if config.curr == 1
         T  ,K= config.var[1],config.var[2]
         q = K[1]
@@ -77,7 +78,7 @@ function integrand(config)
 
         s_s = W1[1]*W2[1]*g3*g6*cos(π*(2*n1+1) * t1 /β) * cos(π*(2*n2+1) * t1/β)*β*β
 
-        factor = 1.0/(2π)^3 
+        factor = 1.0/(2π)^3
         return (s_s) * factor
     elseif config.curr == 2
         T  ,K= config.var[1],config.var[2]
@@ -150,30 +151,51 @@ function measure(config)
     obs = config.observable
     factor = 1.0 / config.reweight[config.curr]
     weight = integrand(config)
-    obs[config.curr] += weight / abs(weight) * factor
+    if config.curr!=1
+        obs[config.var[3][1],config.var[3][2]] += weight / abs(weight) * factor
+    end
 end
 
 function run(steps)
 
     T = MonteCarlo.Tau(β, β / 2.0)
     K = MonteCarlo.FermiK(3, kF, 0.2 * kF, 10.0 * kF)
+    N = MonteCarlo.Discrete(1, length(dlr.n))
 
-    dof = [[1,1],[2,1],[3,1]] # degrees of freedom of the normalization diagram and the bubble
-    obs = zeros(Float64,3) # observable forp the normalization diagram and the bubble
+    dof = [[1,1,2],[2,1,2],[3,1,2]] # degrees of freedom of the normalization diagram and the bubble
+    obs = zeros(Float64,(length(dlr.n),length(dlr.n))) # observable forp the normalization diagram and the bubble
+    println(size(obs))
+    nei = [[2,4],[3,1],[2,4],[1,3]]
 
-    config = MonteCarlo.Configuration(steps, (T,K ), dof, obs)
+    config = MonteCarlo.Configuration(steps, (T,K,N ), dof, obs; neighbor = nei)
     avg, std = MonteCarlo.sample(config, integrand, measure; print=0, Nblock=16)
     # @profview MonteCarlo.sample(config, integrand, measure; print=0, Nblock=1)
     # sleep(100)
 
-    NF = -TwoPoint.LindhardΩnFiniteTemperature(dim, 0.0, 0, kF, β, me, spin)[1]
-    println("NF=$NF")
+    # NF = -TwoPoint.LindhardΩnFiniteTemperature(dim, 0.0, 0, kF, β, me, spin)[1]
+    # println("NF=$NF")
+
+    avg_tw = real(DLR.matfreq2tau(:fermi,avg,dlr,dlr.τ;axis=1,rtol=1e-12))
+    avg_tt = real(DLR.matfreq2tau(:fermi,avg_tw,dlr,dlr.τ;axis=2,rtol=1e-12))
+
+    avg_wt = real(DLR.tau2matfreq(:fermi,avg_tt,dlr,dlr.n;axis=1,rtol=1e-12))
+    avg_ww = real(DLR.tau2matfreq(:fermi,avg_wt,dlr,dlr.n;axis=2,rtol=1e-12))
+    println(size(avg_ww))
 
     if isnothing(avg) == false
-        @printf("%10.6f ± %10.6f\n", avg[1], std[1])
-        @printf("%10.6f ± %10.6f\n", avg[2], std[2])
-        @printf("%10.6f ± %10.6f\n", avg[3], std[3])
-        @printf("%10.6f ± %10.6f\n", sum(avg), sqrt(sum(std .^ 2)))
+        for i in 1:length(dlr.n)
+            for j in 1:length(dlr.n)
+                @printf("%d\t %d\t %10.6f ± %10.6f\t %10.6f\t %10.6f\n",
+                        dlr.n[i],dlr.n[j], avg[i,j], std[i,j], avg_ww[i,j], (avg[i,j]-avg_ww[i,j])/std[i,j])
+            end
+        end
+        println("tau-tau")
+        for i in 1:length(dlr.n)
+            for j in 1:length(dlr.n)
+                @printf("%10.6f\t %10.6f\t %10.6f\t\n",
+                        dlr.τ[i],dlr.τ[j], avg_tt[i,j])
+            end
+        end
     end
 end
 

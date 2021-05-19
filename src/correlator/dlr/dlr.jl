@@ -57,7 +57,7 @@ struct DLRGrid
         end
         rtolpower = Int(floor(log10(rtol))) # get the biggest n so that rtol>1e-n
         if abs(rtolpower) < 4
-            rtolpower = 4
+            rtolpower = -4
         end
         
         filename = string(@__DIR__, "/basis/$(string(type))/dlr$(Λ)_1e$(rtolpower).dlr")
@@ -186,6 +186,9 @@ function matfreq2dlr(type, green, dlrGrid::DLRGrid; axis=1, rtol=1e-12)
     kernel, ipiv, info = LAPACK.getrf!(kernel) # LU factorization
 
     g, partialsize = _tensor2matrix(green, axis)
+    if type==:fermi
+        g=Complex{Float64}.(g)
+    end
 
     coeff = LAPACK.getrs!('N', kernel, ipiv, g) # LU linear solvor for green=kernel*coeff
     # coeff = kernel \ g # solve green=kernel*coeff
