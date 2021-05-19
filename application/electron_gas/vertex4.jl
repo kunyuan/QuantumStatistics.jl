@@ -3,7 +3,7 @@
 
 using QuantumStatistics, LinearAlgebra, Random, Printf,  BenchmarkTools, InteractiveUtils, Parameters
 
-const Step = 1e7 # MC steps of each block
+const Step = 1e6 # MC steps of each block
 
 include("RPA.jl") # dW0 will be only calculated once in the master, then distributed to other workers. Therefore, there is no need to import RPA.jl for all workers.
 
@@ -27,9 +27,12 @@ struct Para{Q,T}
     function Para(AngSize)
         extAngle = collect(LinRange(0.0, π, AngSize)) # external angle grid
         qgrid = Grid.boseK(kF, 6kF, 0.2kF, 256) 
+        qgrid.grid[1] = 1.0e-6 * kF
+        @assert qgrid.grid[1] < qgrid.grid[2]
         τgrid = Grid.tau(β, EF / 20, 128)
 
-        vqinv = [(q^2 + mass2) / (4π * e0^2) for q in qgrid.grid]
+        # vqinv = [(q^2 + mass2) / (4π * e0^2) for q in qgrid.grid]
+        vqinv(q) = (q^2 + mass2) / (4π * e0^2)
         dW0 = dWRPA(vqinv, qgrid.grid, τgrid.grid, kF, β, spin, me) # dynamic part of the effective interaction
         return new{typeof(qgrid),typeof(τgrid)}(extAngle, dW0, qgrid, τgrid)
     end

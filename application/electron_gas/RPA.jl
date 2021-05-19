@@ -61,7 +61,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     include("parameter.jl")
 
     qgrid = Grid.boseK(kF, 3kF, 0.2kF, 32) 
-    qgrid.grid[1] = 1.0e-4 * kF
+    # qgrid.grid[1] = 1.0e-4 * kF
     τgrid = Grid.tau(β, EF / 20, 128)
     println("qGrid: ", qgrid.grid)
     # println("τGrid: ", τgrid.grid)

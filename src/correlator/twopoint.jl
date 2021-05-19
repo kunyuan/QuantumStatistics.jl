@@ -91,9 +91,9 @@ Compute the polarization function of free electrons at a given frequency. Relati
         q = -q
     end
 
-    if q / kF < 1.0e-6
-        println("Warning: q/kF=$(q / kF)<1e-6 is too small, may lose accuracy!")
-    end
+    # if q / kF < 1.0e-6
+    #     println("Warning: q/kF=$(q / kF)<1e-6 is too small, may lose accuracy!")
+    # end
 
     function polar(k)
         phase = T(1.0)
@@ -106,9 +106,12 @@ Compute the polarization function of free electrons at a given frequency. Relati
         ϵ = β * (k^2 - kF^2) / (2m)
         Λq = (q^2 + 2k * q) / (2m)
         # println(Λq, " vs ", ω / 100.0)
-        if abs(Λq) <= abs(ω) / 100.0
+        if abs(Λq) <= abs(ω) / 100.0 && abs(q) >= eps(0.0)
             p = spin * phase * fermiDirac(ϵ) * (-2 * q^2 / m / ω^2 + 2 * k^2 * q^4 / m^3 / ω^4)
         else
+            if q / kF < 1.0e-10
+                q = 1.0e-10 * kF
+            end
             p = spin * phase * fermiDirac(ϵ) * m / k / q * log(((q^2 - 2k * q)^2 + 4m^2 * ω^2) / ((q^2 + 2k * q)^2 + 4m^2 * ω^2))
         end
 
