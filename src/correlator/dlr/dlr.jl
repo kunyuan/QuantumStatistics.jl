@@ -130,7 +130,7 @@ function tau2dlr(type, green, dlrGrid::DLRGrid; axis=1, rtol=1e-12)
 
     g, partialsize = _tensor2matrix(green, axis)
 
-    coeff = LAPACK.getrs!('N', kernel, ipiv, g) # LU linear solvor for green=kernel*coeff
+    coeff = LAPACK.getrs!('N', Complex{Float64}.(kernel), ipiv, Complex{Float64}.(g)) # LU linear solvor for green=kernel*coeff
     # coeff = kernel \ g #solve green=kernel*coeff
     # println("coeff: ", maximum(abs.(coeff)))
 
@@ -186,11 +186,8 @@ function matfreq2dlr(type, green, dlrGrid::DLRGrid; axis=1, rtol=1e-12)
     kernel, ipiv, info = LAPACK.getrf!(kernel) # LU factorization
 
     g, partialsize = _tensor2matrix(green, axis)
-    if type==:fermi
-        g=Complex{Float64}.(g)
-    end
 
-    coeff = LAPACK.getrs!('N', kernel, ipiv, g) # LU linear solvor for green=kernel*coeff
+    coeff = LAPACK.getrs!('N', kernel, ipiv, Complex{Float64}.(g)) # LU linear solvor for green=kernel*coeff
     # coeff = kernel \ g # solve green=kernel*coeff
     # coeff/=dlrGrid.Euv
 
