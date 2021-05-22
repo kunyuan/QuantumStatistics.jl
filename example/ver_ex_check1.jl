@@ -4,7 +4,7 @@
 using QuantumStatistics, LinearAlgebra, Random, Printf, BenchmarkTools, InteractiveUtils, Parameters
 # using ProfileView
 
-const Steps = 1e6
+const Steps = 4e7
 
 include("parameter.jl")
 include("../application/electron_gas/RPA.jl")
@@ -14,8 +14,8 @@ dlr = DLR.DLRGrid(:fermi, 10*EF,β, 1e-2)
 const qgrid = Grid.boseKUL(kF, 10kF, 0.000001*sqrt(me^2/β/kF^2), 15,4) 
 const τgrid = Grid.tauUL(β, 0.0001, 11,4)
 const vqinv = [(q^2 + mass2) / (4π * e0^2) for q in qgrid.grid]
-println(qgrid.grid)
-println(τgrid.grid)
+# println(qgrid.grid)
+# println(τgrid.grid)
 
 const dW0 = dWRPA(vqinv, qgrid.grid, τgrid.grid, kF, β, spin, me) # dynamic part of the effective interaction
 
@@ -23,9 +23,9 @@ const NF = -TwoPoint.LindhardΩnFiniteTemperature(dim, 0.0, 0, kF, β, me, spin)
 println("NF=$NF")
 
 function lindhard(x)
-    if (abs(x) < 1.0e-6)
+    if (abs(x) < 1.0e-8)
         return 1.0
-    elseif (abs(x - 1.0) < 1.0e-6)
+    elseif (abs(x - 1.0) < 1.0e-8)
         return 0.5
     else
         return 0.5 - (x^2 - 1) / 4.0 / x * log(abs((1 + x) / (1 - x)))
@@ -43,9 +43,9 @@ function interaction(q, τIn, τOut)
         w = v * Grid.linear2D(dW0, qgrid, τgrid, kQ, dτ) # dynamic interaction, don't forget the singular factor vq
     end
     v = 4π * e0^2 / (kQ^2 + mass2 + 4π * e0^2 * NF * lindhard(kQ / 2.0 / kF))
-    v = v - w
-
-    return -v, -w
+    v = v/β - w
+#    v = v/β
+    return v, w
 end
 
 # function WRPA(τ,q)
@@ -93,17 +93,17 @@ function integrand(config)
         τ4 = (t1)/β
         g4 = Spectral.kernelFermiT(τ4, ω2)
 
-        W1 = interaction(q-k1-k2, 0.0, t2/β)
-        W2 = interaction(q, (t1)/β,(t3)/β )
+        W1 = interaction(q-k1-k2, 0.0, t2)
+        W2 = interaction(q, (t1),(t3) )
 
-        factor = 1.0/(2π)^3/β/β
-        r_r = W1[2]*W2[2]*g1*g2* factor*exp(-im*π*(2*n1+1) * t1 /β) * exp(-im*π*(2*n2+1) * (t2-t3)/β)
+        factor = 1.0/(2π)^3
+        r_r = W1[2]*W2[2]*g1*g2* factor*exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (-t2-t3)/β)
         # s_r = W1[1]*W2[2]*g1*g2/β
         # r_s = W1[2]*W2[1]*g1*g2/β
         # s_s = W1[1]*W2[1]*g1*g2
-        s_r = W1[1]*W2[2]*g1*g4* factor*exp(-im*π*(2*n1+1) * t1 /β) * exp(-im*π*(2*n2+1) * (-t3)/β)
-        r_s = W1[2]*W2[1]*g2*g3* factor*exp(-im*π*(2*n1+1) * t1 /β) * exp(-im*π*(2*n2+1) * (t2-t1)/β)
-        s_s = W1[1]*W2[1]*g3*g4* factor*exp(-im*π*(2*n1+1) * t1 /β) * exp(-im*π*(2*n2+1) * (-t1)/β)
+        s_r = W1[1]*W2[2]*g1*g4* factor*exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (-t3)/β)
+        r_s = W1[2]*W2[1]*g2*g3* factor*exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (-t2-t1)/β)
+        s_s = W1[1]*W2[1]*g3*g4* factor*exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (-t1)/β)
 
 
         result =  (s_s+s_r+r_s+r_r)
@@ -134,32 +134,37 @@ function run(steps)
     #    nei = [[2,4],[3,1],[2,4],[1,3]]
 
     config = MonteCarlo.Configuration(steps, (T,K,N ), dof, obs)
-    avg, std = MonteCarlo.sample(config, integrand, measure; print=0, Nblock=16)
+    avg, std = MonteCarlo.sample(config, integrand, measure; print=0, Nblock=4)
     # @profview MonteCarlo.sample(config, integrand, measure; print=0, Nblock=1)
     # sleep(100)
 
     # NF = -TwoPoint.LindhardΩnFiniteTemperature(dim, 0.0, 0, kF, β, me, spin)[1]
     # println("NF=$NF")
 
-    # avg_tw = (DLR.matfreq2tau(:fermi,avg,dlr,dlr.τ;axis=1,rtol=1e-12))
-    # avg_tt = (DLR.matfreq2tau(:fermi,avg_tw,dlr,dlr.τ;axis=2,rtol=1e-12))
-
-    # avg_wt = (DLR.tau2matfreq(:fermi,avg_tt,dlr,dlr.n;axis=1,rtol=1e-12))
-    # avg_ww = (DLR.tau2matfreq(:fermi,avg_wt,dlr,dlr.n;axis=2,rtol=1e-12))
-    # println(size(avg_ww))
 
     if isnothing(avg) == false
+
+        println("fourier")
+        avg_c = avg[:,:,1]+im*avg[:,:,2]
+        avg_tw = (DLR.matfreq2tau(:fermi,avg_c,dlr,dlr.τ;axis=1,rtol=1e-2))
+        avg_tt = (DLR.matfreq2tau(:fermi,avg_tw,dlr,dlr.τ;axis=2,rtol=1e-2))
+
+        avg_wt = (DLR.tau2matfreq(:fermi,avg_tt,dlr,dlr.n;axis=1,rtol=1e-2))
+        avg_ww = (DLR.tau2matfreq(:fermi,avg_wt,dlr,dlr.n;axis=2,rtol=1e-2))
+        println(size(avg_ww))
+
         for i in 1:length(dlr.n)
             for j in 1:length(dlr.n)
-                @printf("%d\t %d\t %10.6f ± %10.6f\t %10.6f ± %10.6f\n",
-                        dlr.n[i],dlr.n[j], (avg[i,j,1]), (std[i,j,1]), (avg[i,j,2]), std[i,j,2])
+                @printf("%d\t %d\t %10.6f ± %10.6f\t %10.6f\n",
+                        dlr.n[i],dlr.n[j], (avg[i,j,1]), (std[i,j,1]), real(avg_ww[i,j]))
             end
         end
+
         # println("tau-tau")
         # for i in 1:length(dlr.n)
         #     for j in 1:length(dlr.n)
-        #         @printf("%10.6f\t %10.6f\t %10.6f\t\n",
-        #                 dlr.τ[i],dlr.τ[j], real(avg_tt[i,j]))
+        #         @printf("%10.6f\t %10.6f\t %10.6f\t%10.6f\n",
+        #                 dlr.τ[i],dlr.τ[j], real(avg_tt[i,j]),imag(avg_tt[i,j]))
         #     end
         # end
     end
