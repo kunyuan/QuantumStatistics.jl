@@ -4,37 +4,49 @@
 using QuantumStatistics, LinearAlgebra, Random, Printf, BenchmarkTools, InteractiveUtils, Parameters
 # using ProfileView
 using PyCall
-
-
-const Steps = 1e6
+const Steps = 4e7
 
 include("parameter.jl")
 include("../application/electron_gas/RPA.jl")
 
-const n1=0
-const n2=0
-const ℓ=1
+const ℓ=0
 
 special = pyimport("scipy.special")
 coeff = SVector{ℓ+1,Float64}(special.legendre(ℓ).c)
-exp = zeros(ℓ+1)
+expn = zeros(ℓ+1)
 for i=1:ℓ+1
-    exp[i]=ℓ+1-i
+    expn[i]=ℓ+1-i
 end
-exp = SVector{ℓ+1,Float64}(exp)
+expn = SVector{ℓ+1,Float64}(expn)
 
 function legendre(x)
-    return dot((x .^ exp) ,coeff)
+    return dot((x .^ expn) ,coeff)
 end
 
+println("legendre(0.5)=",legendre(0.5))
 
-const qgrid = Grid.boseKUL(kF, 6kF, 0.000001*sqrt(me^2/β/kF^2), 15,4) 
+dlr = DLR.DLRGrid(:fermi, 10*EF,β, 1e-2)
+
+const qgrid = Grid.boseKUL(kF, 10kF, 0.000001*sqrt(me^2/β/kF^2), 15,4) 
 const τgrid = Grid.tauUL(β, 0.0001, 11,4)
 const vqinv = [(q^2 + mass2) / (4π * e0^2) for q in qgrid.grid]
-println(qgrid.grid)
-println(τgrid.grid)
+# println(qgrid.grid)
+# println(τgrid.grid)
 
 const dW0 = dWRPA(vqinv, qgrid.grid, τgrid.grid, kF, β, spin, me) # dynamic part of the effective interaction
+
+const NF = -TwoPoint.LindhardΩnFiniteTemperature(dim, 0.0, 0, kF, β, me, spin)[1]
+println("NF=$NF")
+
+function lindhard(x)
+    if (abs(x) < 1.0e-8)
+        return 1.0
+    elseif (abs(x - 1.0) < 1.0e-8)
+        return 0.5
+    else
+        return 0.5 - (x^2 - 1) / 4.0 / x * log(abs((1 + x) / (1 - x)))
+    end
+end
 
 function interaction(q, τIn, τOut)
     dτ = abs(τOut - τIn)
@@ -46,8 +58,10 @@ function interaction(q, τIn, τOut)
     else
         w = v * Grid.linear2D(dW0, qgrid, τgrid, kQ, dτ) # dynamic interaction, don't forget the singular factor vq
     end
-
-    return -v / β, -w
+    v = 4π * e0^2 / (kQ^2 + mass2 + 4π * e0^2 * NF * lindhard(kQ / 2.0 / kF))
+    v = v/β - w
+#    v = v/β
+    return v, w
 end
 
 # function WRPA(τ,q)
@@ -67,11 +81,17 @@ end
 # end
 
 function integrand(config)
+    result = 0.0+0.0im
+
+    N = config.var[3]
+    n1,n2 = dlr.n[N[1]],dlr.n[N[2]]
     if config.curr == 1
-        T, K, Theta= config.var[1],config.var[2],config.var[3]
+        T,K,N,Theta = config.var[1],config.var[2], config.var[3],config.var[4]
+        n1,n2 = dlr.n[N[1]],dlr.n[N[2]]
         q = K[1]
-        t1 = T[1]
+        t1, t2, t3 = T[1], T[2], T[3]
         θ = Theta[1]
+        θ = abs(π-θ)
 
         k1 = kF * @SVector[1, 0, 0]
         k2 = kF * @SVector[cos(θ), sin(θ), 0]
@@ -80,127 +100,92 @@ function integrand(config)
 
         ω2 = (dot(q-k2, q-k2) - kF^2) * β
 
-        τ3 = (t1)/β
-        g3 = Spectral.kernelFermiT(τ3, ω1)
-
-        τ6 = (-t1)/β
-        g6 = Spectral.kernelFermiT(τ6, ω2)
-
-        # W1 = WRPA(t, q-k1-k2)
-        # W2 = WRPA(t-t1-t2,q)
-
-        W1 = interaction(q-k1-k2, 0, 0/β)
-        W2 = interaction(q, (t1)/β,t1/β )
-
-        s_s = W1[1]*W2[1]*g3*g6*cos(π*(2*n1+1) * t1 /β) * cos(π*(2*n2+1) * t1/β)*β*β
-
-        factor = 1.0/(2π)^3 /2.0
-        return 0.0
-        return (s_s) * factor * sin(θ)*legendre(cos(θ))
-    elseif config.curr == 2
-        T, K, Theta= config.var[1],config.var[2],config.var[3]
-        q = K[1]
-        t1, t2 = T[1], T[2]
-        θ = Theta[1]
-
-        k1 = kF * @SVector[1, 0, 0]
-        k2 = kF * @SVector[cos(θ), sin(θ), 0]
-
-        ω1 = (dot(q-k1, q-k1) - kF^2) * β
-
-        ω2 = (dot(q-k2, q-k2) - kF^2) * β
-
-        τ3 = (t1)/β
-        g3 = Spectral.kernelFermiT(τ3, ω1)
-
-        τ4 = (-t2)/β
-        g4 = Spectral.kernelFermiT(τ4, ω2)
-
-        τ5 = (t2)/β
-        g5 = Spectral.kernelFermiT(τ5, ω1)
-
-        τ6 = (-t1)/β
-        g6 = Spectral.kernelFermiT(τ6, ω2)
-
-        # W1 = WRPA(t, q-k1-k2)
-        # W2 = WRPA(t-t1-t2,q)
-
-
-        W10 = interaction(q-k1-k2,0,(t1-t2)/β)
-        W20 = interaction(q,t2/β,t1/β)
-
-        s_r = W10[1]*W20[2]*g3*g4*cos(π*(2*n1+1) * t1 /β) * cos(π*(2*n2+1) * t2/β)
-        r_s = W10[2]*W20[1]*g5*g6*cos(π*(2*n1+1) * t1 /β) * cos(π*(2*n2+1) * t2/β)
-
-        factor = 1.0/(2π)^3 /2.0
-        return (s_r+r_s) * factor* sin(θ)*legendre(cos(θ))
-
-    elseif config.curr == 3
-        T, K, Theta= config.var[1],config.var[2],config.var[3]
-        q = K[1]
-        t, t1, t2 = T[1], T[2], T[3]
-        θ = Theta[1]
-
-        k1 = kF * @SVector[1, 0, 0]
-        k2 = kF * @SVector[cos(θ), sin(θ), 0]
-
-        ω1 = (dot(q-k1, q-k1) - kF^2) * β
-        τ1 = (t1-t)/β
+        τ1 = (-t3)/β
         g1 = Spectral.kernelFermiT(τ1, ω1)
 
-        ω2 = (dot(q-k2, q-k2) - kF^2) * β
-        τ2 = (β-t2-t)/β
-        g2 = -Spectral.kernelFermiT(τ2, ω2)
+        τ3 = (-t1)/β
+        g3 = Spectral.kernelFermiT(τ3, ω1)
 
-        W1 = interaction(q-k1-k2, 0, t/β)
-        W2 = interaction(q, (t+t2)/β,t1/β )
+        τ2 = (t1-t2)/β
+        g2 = Spectral.kernelFermiT(τ2, ω2)
 
-        r_r = W1[2]*W2[2]*g1*g2*cos(π*(2*n1+1) * t1 /β) * cos(π*(2*n2+1) * t2/β)/β/β
+        τ4 = (t1)/β
+        g4 = Spectral.kernelFermiT(τ4, ω2)
 
-        factor = 1.0/(2π)^3 /2.0
-        return (r_r) * factor* sin(θ)*legendre(cos(θ))
+        W1 = interaction(q-k1-k2, 0.0, t2)
+        W2 = interaction(q, (t1),(t3) )
 
+        factor = 1.0/(2π)^3 * legendre(cos(θ))*sin(θ)/2.0
+        r_r = W1[2]*W2[2]*g1*g2* factor*exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (t2-t3)/β)
+        # s_r = W1[1]*W2[2]*g1*g2/β
+        # r_s = W1[2]*W2[1]*g1*g2/β
+        # s_s = W1[1]*W2[1]*g1*g2
+        s_r = W1[1]*W2[2]*g1*g4* factor*exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (-t3)/β)
+        r_s = W1[2]*W2[1]*g2*g3* factor*exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (t2-t1)/β)
+        s_s = W1[1]*W2[1]*g3*g4* factor*exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (-t1)/β)
+
+        result =  (s_s+s_r+r_s+r_r)
     else
-        return 0.0
+        result =  0.0+0.0*im
     end
-
+    return Weight(real(result),imag(result))
 end
+
 
 function measure(config)
     obs = config.observable
     factor = 1.0 / config.reweight[config.curr]
     weight = integrand(config)
-    obs[config.curr] += weight / abs(weight) * factor
+    obs[config.var[3][1],config.var[3][2],:] += weight / abs(weight) * factor
+
 end
 
 function run(steps)
 
     T = MonteCarlo.Tau(β, β / 2.0)
     K = MonteCarlo.FermiK(3, kF, 0.2 * kF, 10.0 * kF)
-    Angle = MonteCarlo.Angle()
+    N = MonteCarlo.Discrete(1, length(dlr.n))
+    Theta = MonteCarlo.Angle()
 
-    dof = [[1,1,1],[2,1,1],[3,1,1]] # degrees of freedom of the normalization diagram and the bubble
-    obs = zeros(Float64,3) # observable forp the normalization diagram and the bubble
-    nei = [[2,4],[3,1],[2,4],[1,3]]
+    dof = [[3,1,2,1],] # degrees of freedom of the normalization diagram and the bubble
+    obs = zeros(Float64,(length(dlr.n),length(dlr.n),2))
 
-#    config = MonteCarlo.Configuration(steps, (T,K,Angle ), dof, obs)
-    config = MonteCarlo.Configuration(steps, (T,K,Angle ), dof, obs; neighbor = nei)
-    avg, std = MonteCarlo.sample(config, integrand, measure; print=0, Nblock=16)
+    #    nei = [[2,4],[3,1],[2,4],[1,3]]
+
+    config = MonteCarlo.Configuration(steps, (T,K,N,Theta ), dof, obs)
+    avg, std = MonteCarlo.sample(config, integrand, measure; print=0, Nblock=4)
     # @profview MonteCarlo.sample(config, integrand, measure; print=0, Nblock=1)
     # sleep(100)
 
-    NF = -TwoPoint.LindhardΩnFiniteTemperature(dim, 0.0, 0, kF, β, me, spin)[1]
-    println("NF=$NF")
+    # NF = -TwoPoint.LindhardΩnFiniteTemperature(dim, 0.0, 0, kF, β, me, spin)[1]
+    # println("NF=$NF")
+
 
     if isnothing(avg) == false
-        # @printf("%10.6e ± %10.6e\n", avg[1], std[1])
-        # @printf("%10.6e ± %10.6e\n", avg[2], std[2])
-        # @printf("%10.6e ± %10.6e\n", avg[3], std[3])
-        # @printf("%10.6e ± %10.6e\n", sum(avg), sqrt(sum(std .^ 2)))
-        @printf("%10.6f ± %10.6f\n", avg[1], std[1])
-        @printf("%10.6f ± %10.6f\n", avg[2], std[2])
-        @printf("%10.6f ± %10.6f\n", avg[3], std[3])
-        @printf("%10.6f ± %10.6f\n", sum(avg), sqrt(sum(std .^ 2)))
+
+        println("fourier")
+        avg_c = avg[:,:,1]+im*avg[:,:,2]
+        avg_tw = (DLR.matfreq2tau(:fermi,avg_c,dlr,dlr.τ;axis=1,rtol=1e-2))
+        avg_tt = (DLR.matfreq2tau(:fermi,avg_tw,dlr,dlr.τ;axis=2,rtol=1e-2))
+
+        avg_wt = (DLR.tau2matfreq(:fermi,avg_tt,dlr,dlr.n;axis=1,rtol=1e-2))
+        avg_ww = (DLR.tau2matfreq(:fermi,avg_wt,dlr,dlr.n;axis=2,rtol=1e-2))
+        println(size(avg_ww))
+
+        for i in 1:length(dlr.n)
+            for j in 1:length(dlr.n)
+                @printf("%d\t %d\t %10.6f ± %10.6f\t %10.6f\n",
+                        dlr.n[i],dlr.n[j], (avg[i,j,1]), (std[i,j,1]), real(avg_ww[i,j]))
+            end
+        end
+
+        # println("tau-tau")
+        # for i in 1:length(dlr.n)
+        #     for j in 1:length(dlr.n)
+        #         @printf("%10.6f\t %10.6f\t %10.6f\t%10.6f\n",
+        #                 dlr.τ[i],dlr.τ[j], real(avg_tt[i,j]),imag(avg_tt[i,j]))
+        #     end
+        # end
     end
 end
 
