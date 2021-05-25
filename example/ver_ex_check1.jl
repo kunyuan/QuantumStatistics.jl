@@ -4,7 +4,7 @@
 using QuantumStatistics, LinearAlgebra, Random, Printf, BenchmarkTools, InteractiveUtils, Parameters
 # using ProfileView
 
-const Steps = 4e7
+const Steps = 1e7
 
 include("parameter.jl")
 include("../application/electron_gas/RPA.jl")
@@ -32,6 +32,22 @@ function lindhard(x)
     end
 end
 
+function W_toy(τ,q)
+    # temporarily using a toy model
+    g=1.0
+
+    factor=1.0
+    q2=dot(q,q)
+    if τ<-β
+        τ=τ+2*β
+    elseif τ<0
+        τ=τ+β
+        factor=1.0
+    end
+    sq2g=sqrt(q2+g)
+    return -factor*4*π/(q2+g)/sq2g*(exp(-sq2g*τ)+exp(-sq2g*(β-τ)))/(1-exp(-sq2g*β))
+end
+
 function interaction(q, τIn, τOut)
     dτ = abs(τOut - τIn)
 
@@ -42,9 +58,10 @@ function interaction(q, τIn, τOut)
     else
         w = v * Grid.linear2D(dW0, qgrid, τgrid, kQ, dτ) # dynamic interaction, don't forget the singular factor vq
     end
-    v = 4π * e0^2 / (kQ^2 + mass2 + 4π * e0^2 * NF * lindhard(kQ / 2.0 / kF))
-    v = v/β - w
-#    v = v/β
+    w = W_toy(dτ,kQ)
+    # v = 4π * e0^2 / (kQ^2 + mass2 + 4π * e0^2 * NF * lindhard(kQ / 2.0 / kF))
+    # v = v/β - w
+    v = v/β
     return v, w
 end
 
@@ -97,16 +114,16 @@ function integrand(config)
         W2 = interaction(q, (t1),(t3) )
 
         factor = 1.0/(2π)^3
-        r_r = W1[2]*W2[2]*g1*g2* factor*exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (-t2-t3)/β)
+        r_r = W1[2]*W2[2]*g1*g2* factor*exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (t2-t3)/β)
         # s_r = W1[1]*W2[2]*g1*g2/β
         # r_s = W1[2]*W2[1]*g1*g2/β
         # s_s = W1[1]*W2[1]*g1*g2
         s_r = W1[1]*W2[2]*g1*g4* factor*exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (-t3)/β)
-        r_s = W1[2]*W2[1]*g2*g3* factor*exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (-t2-t1)/β)
+        r_s = W1[2]*W2[1]*g2*g3* factor*exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (t2-t1)/β)
         s_s = W1[1]*W2[1]*g3*g4* factor*exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (-t1)/β)
 
 
-        result =  (s_s+s_r+r_s+r_r)
+        result = r_r#(s_s+s_r+r_s+r_r)
     else
         result =  0.0+0.0*im
     end
@@ -134,7 +151,7 @@ function run(steps)
     #    nei = [[2,4],[3,1],[2,4],[1,3]]
 
     config = MonteCarlo.Configuration(steps, (T,K,N ), dof, obs)
-    avg, std = MonteCarlo.sample(config, integrand, measure; print=0, Nblock=4)
+    avg, std = MonteCarlo.sample(config, integrand, measure; print=0, Nblock=16)
     # @profview MonteCarlo.sample(config, integrand, measure; print=0, Nblock=1)
     # sleep(100)
 
