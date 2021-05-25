@@ -40,11 +40,12 @@ end
 
 function phase(tInL, tOutL, tInR, tOutR)
     if (IsF)
-        return cos(π * ((tInL + tOutL) - (tInR + tOutR)));
+        return cos(π * ((tInL + tOutL) - (tInR + tOutR)) / β);
     else
-        # return cos(π * ((tInL - tOutL) + (tInR - tOutR)))
-        # return cos(π * ((tInL - tOutL) - (tInR - tOutR)))
-        return cos(π * ((tInL - 3 * tOutL) - (tInR - 3 * tOutR)))
+        # return cos(π * ((tInL - tOutL) + (tInR - tOutR))/β) #ω0, ω0, ω0, ω0
+        return cos(π * ((tInL - tOutL) - (tInR - tOutR)) / β) # ω0, ω0, -ω0, -ω0
+        # return cos(π * ((tInL - 3 * tOutL) - (tInR - 3 * tOutR)) / β) # ω0, ω1, -ω0, -ω1
+        # return cos(π * (33 * 2 + 1) * ((tInL - tOutL) - (tInR - tOutR)) / β) # ω0, ω1, -ω0, -ω1
     end
 end
 
@@ -95,7 +96,7 @@ function integrand(config)
 """
     gd1 = Spectral.kernelFermiT(t1[1] - t2[1], ϵ2, β)
     G = gt1 * gd1 / (2π)^3 * phase(t1[1], t1[1], t2[1], t2[1])
-    # we += G * (vle * vre)
+    we += G * (vle * vre)
     ##################################################
 
     ############## Diagram w x v ######################
@@ -114,7 +115,7 @@ function integrand(config)
     """
     gd2 = Spectral.kernelFermiT(t1[2] - t2[1], ϵ2, β)
     G = gt1 * gd2 / (2π)^3 * phase(t1[1], t1[2], t2[1], t2[1])
-    # we += G * (wle * vre) 
+    we += G * (wle * vre) 
     ##################################################
 
     ############## Diagram v x w ######################
@@ -133,7 +134,7 @@ function integrand(config)
     """
     gd3 = Spectral.kernelFermiT(t1[1] - t2[2], ϵ2, β)
     G = gt1 * gd3 / (2π)^3 * phase(t1[1], t1[1], t2[2], t2[1])
-    # we += G * (vle * wre)
+    we += G * (vle * wre)
     ##################################################
 
     ############## Diagram w x w ######################

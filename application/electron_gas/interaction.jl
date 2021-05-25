@@ -38,8 +38,8 @@ function vertexDynamic(config, qd, qe, τIn, τOut)
     vd, wd = interactionDynamic(config, qd, τIn, τOut)
     ve, we = interactionDynamic(config, qe, τIn, τOut)
 
-    wd = WRPA(τOut - τIn, qd)
-    we = WRPA(τOut - τIn, qe)
+    # wd = WRPA(τOut - τIn, qd)
+    # we = WRPA(τOut - τIn, qe)
 
     return -vd, -wd, ve, we
 end
