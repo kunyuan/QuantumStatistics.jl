@@ -3,7 +3,7 @@
 
 using QuantumStatistics, LinearAlgebra, Random, Printf,  BenchmarkTools, InteractiveUtils, Parameters
 
-const Step = 1e6 # MC steps of each block
+const Step = 1e7 # MC steps of each block
 
 include("RPA.jl") # dW0 will be only calculated once in the master, then distributed to other workers. Therefore, there is no need to import RPA.jl for all workers.
 
@@ -13,7 +13,7 @@ include("interaction.jl")
 # claim all globals to be constant, otherwise, global variables could impact the efficiency
 ########################### parameters ##################################
 const IsF = false # calculate quasiparticle interaction F or not
-const AngSize = 16
+const AngSize = 2
 
 ########################## variables for MC integration ##################
 const KInL = [kF, 0.0, 0.0] # incoming momentum of the left particle
@@ -42,7 +42,9 @@ function phase(tInL, tOutL, tInR, tOutR)
     if (IsF)
         return cos(π * ((tInL + tOutL) - (tInR + tOutR)));
     else
-        return cos(π * ((tInL - tOutL) + (tInR - tOutR)))
+        # return cos(π * ((tInL - tOutL) + (tInR - tOutR)))
+        # return cos(π * ((tInL - tOutL) - (tInR - tOutR)))
+        return cos(π * ((tInL - 3 * tOutL) - (tInR - 3 * tOutR)))
     end
 end
 
@@ -53,10 +55,13 @@ function integrand(config)
     k1, k2 = K[1], K[1] - Qd
     t1, t2 = T[1], T[2] # t1, t2 both have two tau variables
     θ = config.para.extAngle[Ang[1]] # angle of the external momentum on the right
-    KInR = [kF * cos(θ), kF * sin(θ), 0.0]
+    # KInR = [kF * cos(θ), kF * sin(θ), 0.0]
+    KInR = [-kF, 0.0, 0.0]
 
     vld, wld, vle, wle = vertexDynamic(config, Qd, KInL - k1, t1[1], t1[2])
     vrd, wrd, vre, wre = vertexDynamic(config, Qd, KInR - k2, t2[1], t2[2])
+
+    # vld, vle, vrd, vre = 0.0, 0.0, 0.0, 0.0
 
     ϵ1, ϵ2 = (dot(k1, k1) - kF^2) / (2me), (dot(k2, k2) - kF^2) / (2me) 
     wd, we = 0.0, 0.0
@@ -90,7 +95,7 @@ function integrand(config)
 """
     gd1 = Spectral.kernelFermiT(t1[1] - t2[1], ϵ2, β)
     G = gt1 * gd1 / (2π)^3 * phase(t1[1], t1[1], t2[1], t2[1])
-    we += G * (vle * vre)
+    # we += G * (vle * vre)
     ##################################################
 
     ############## Diagram w x v ######################
@@ -109,7 +114,7 @@ function integrand(config)
     """
     gd2 = Spectral.kernelFermiT(t1[2] - t2[1], ϵ2, β)
     G = gt1 * gd2 / (2π)^3 * phase(t1[1], t1[2], t2[1], t2[1])
-    we += G * (wle * vre) 
+    # we += G * (wle * vre) 
     ##################################################
 
     ############## Diagram v x w ######################
@@ -128,7 +133,7 @@ function integrand(config)
     """
     gd3 = Spectral.kernelFermiT(t1[1] - t2[2], ϵ2, β)
     G = gt1 * gd3 / (2π)^3 * phase(t1[1], t1[1], t2[2], t2[1])
-    we += G * (vle * wre)
+    # we += G * (vle * wre)
     ##################################################
 
     ############## Diagram w x w ######################
@@ -179,8 +184,10 @@ function run(steps)
         NF = TwoPoint.LindhardΩnFiniteTemperature(dim, 0.0, 0, kF, β, me, spin)[1]
         println("NF = $NF")
 
-        avg .*= NF / β
-        std .*= NF / β
+        avg .*= 1.0 / β
+        std .*= 1.0 / β
+        # avg .*= NF 
+        # std .*= NF 
 
         for (idx, angle) in enumerate(para.extAngle)
             @printf("%10.6f   %10.6f ± %10.6f  %10.6f ± %10.6f\n", angle, avg[1, idx], std[1,idx], avg[2,idx], std[2,idx])
