@@ -58,10 +58,10 @@ function interaction(q, τIn, τOut)
     else
         w = v * Grid.linear2D(dW0, qgrid, τgrid, kQ, dτ) # dynamic interaction, don't forget the singular factor vq
     end
-    w = W_toy(dτ,kQ)
-    # v = 4π * e0^2 / (kQ^2 + mass2 + 4π * e0^2 * NF * lindhard(kQ / 2.0 / kF))
-    # v = v/β - w
-    v = v/β
+#    w = W_toy(dτ,kQ)
+    v = 4π * e0^2 / (kQ^2 + mass2 + 4π * e0^2 * NF * lindhard(kQ / 2.0 / kF))
+    v = v/β - w
+#    v = v/β
     return v, w
 end
 
@@ -123,7 +123,7 @@ function integrand(config)
         s_s = W1[1]*W2[1]*g3*g4* factor*exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (-t1)/β)
 
 
-        result = r_r#(s_s+s_r+r_s+r_r)
+        result = (s_s+s_r+r_s+r_r)
     else
         result =  0.0+0.0*im
     end
