@@ -83,10 +83,11 @@ Compute the polarization function of free electrons at a given frequency. Relati
 - `n`: externel Matsubara frequency, ωn=2π*n/β
 - `kF`: Fermi momentum 
 - `β`: inverse temperature
+- `μ`: chemical potential
 - `m`: mass
 - `spin` : number of spins
 """
-@inline function LindhardΩnFiniteTemperature(dim::Int, q::T, n::Int, kF::T, β::T, m::T, spin) where {T <: AbstractFloat}
+@inline function LindhardΩnFiniteTemperature(dim::Int, q::T, n::Int, kF::T, β::T, μ::T, m::T, spin) where {T <: AbstractFloat}
     if q < 0.0
         q = -q
     end
@@ -97,13 +98,13 @@ Compute the polarization function of free electrons at a given frequency. Relati
 
     function polar(k)
         phase = T(1.0)
-        if dim == 3
+            if dim == 3
             phase *= k^2 / (4π^2)
         else
             error("not implemented")
         end
         ω = 2π * n / β
-        ϵ = β * (k^2 - kF^2) / (2m)
+        ϵ = β * (k^2 - μ) / (2m)
         Λq = (q^2 + 2k * q) / (2m)
         # println(Λq, " vs ", ω / 100.0)
         if abs(Λq) <= abs(ω) / 100.0 && abs(q) >= eps(0.0)  # n>0
@@ -113,7 +114,7 @@ Compute the polarization function of free electrons at a given frequency. Relati
             p = spin * phase * fermiDirac(ϵ) * m / k / q * log(((q^2 - 2k * q)^2 + 4m^2 * ω^2) / ((q^2 + 2k * q)^2 + 4m^2 * ω^2))
         end
 
-        if isnan(p)
+            if isnan(p)
             println("warning: integrand at ω=$ω, q=$q, k=$k is NaN!")
         end
         # println(p)
