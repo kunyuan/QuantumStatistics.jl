@@ -10,7 +10,7 @@ const spin = 2  # number of spins
 const rs = 1.91916 
 const kF = (dim == 3) ? (9π / (2spin))^(1 / 3) / rs : sqrt(4 / spin) / rs
 const EF = kF^2 / (2me)
-const β = 50.0 / kF^2
+const β = 10.0 / kF^2
 const mass2 = 0.0001#0.000001
 
 const Weight = SVector{2,Float64}
