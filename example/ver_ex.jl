@@ -91,8 +91,8 @@ function integrand(config)
         θ = Theta[1]
         θ = abs(π-θ)
 
-        k1 = 0.5kF * @SVector[1, 0, 0]
-        k2 = 1.5kF * @SVector[cos(θ), sin(θ), 0]
+        k1 = 0.9kF * @SVector[1, 0, 0]
+        k2 = 1.1kF * @SVector[cos(θ), sin(θ), 0]
 
         ω1 = (dot(q-k1, q-k1) - kF^2) * β
 
@@ -123,20 +123,6 @@ function integrand(config)
         s_s = W1[1]*W2[1]*g3*g4* factor*exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (-t1)/β)
 
         result =  (s_s+s_r+r_s+r_r)
-    elseif config.curr == 2
-        T,K,N,Theta = config.var[1],config.var[2], config.var[3],config.var[4]
-        n1,n2 = dlr.n[N[1]],dlr.n[N[2]]
-        q = K[1]
-        t1, t2, t3 = T[1], T[2], T[3]
-        θ = Theta[1]
-        θ = abs(π-θ)
-
-        k1 = kF * @SVector[1, 0, 0]
-        k2 = kF * @SVector[cos(θ), sin(θ), 0]
-
-        ω1 = (dot(q-k1, q-k1) - kF^2) * β
-
-        ω2 = (dot(q-k2, q-k2) - kF^2) * β
 
         τ1 = (-t3)/β
         g1 = Spectral.kernelFermiT(τ1, ω1)
@@ -168,7 +154,7 @@ function integrand(config)
         r_s = W1[2]*W2[1]*g3*g6* factor*exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (t2-t1)/β)
         s_s = W1[1]*W2[1]*g3*g8* factor*exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (-t1)/β)
 
-        result =  (s_s+s_r+r_s+r_r) * 2.0
+        result +=  (s_s+s_r+r_s+r_r) * 2.0
     else
         result =  0.0+0.0*im
     end
@@ -191,7 +177,7 @@ function run(steps)
     N = MonteCarlo.Discrete(1, length(dlr.n))
     Theta = MonteCarlo.Angle()
 
-    dof = [[3,1,2,1],[3,1,2,1]] # degrees of freedom of the normalization diagram and the bubble
+    dof = [[3,1,2,1],] # degrees of freedom of the normalization diagram and the bubble
     obs = zeros(Float64,(length(dlr.n),length(dlr.n),2))
 
     #    nei = [[2,4],[3,1],[2,4],[1,3]]
