@@ -82,6 +82,7 @@ end
 
 function integrand(config)
     result = 0.0+0.0im
+    kin, kout = 0.9kF, 1.1kF
 
     if config.curr == 1
         T,K,N,Theta = config.var[1],config.var[2], config.var[3],config.var[4]
@@ -91,8 +92,8 @@ function integrand(config)
         θ = Theta[1]
         θ = abs(π-θ)
 
-        k1 = 0.9kF * @SVector[1, 0, 0]
-        k2 = 1.1kF * @SVector[cos(θ), sin(θ), 0]
+        k1 = kin * @SVector[1, 0, 0]
+        k2 = kout * @SVector[cos(θ), sin(θ), 0]
 
         ω1 = (dot(q-k1, q-k1) - kF^2) * β
 
@@ -123,6 +124,10 @@ function integrand(config)
         s_s = W1[1]*W2[1]*g3*g4* factor*exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (-t1)/β)
 
         result =  (s_s+s_r+r_s+r_r)
+
+        ω1 = (dot(q-k1, q-k1) - kF^2) * β
+
+        ω2 = (dot(q-k2, q-k2) - kF^2) * β
 
         τ1 = (-t3)/β
         g1 = Spectral.kernelFermiT(τ1, ω1)
@@ -155,6 +160,22 @@ function integrand(config)
         s_s = W1[1]*W2[1]*g3*g8* factor*exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (-t1)/β)
 
         result +=  (s_s+s_r+r_s+r_r) * 2.0
+    elseif config.curr == 2
+        # bare interaction
+        T,K,N,Theta = config.var[1],config.var[2], config.var[3],config.var[4]
+        n1,n2 = dlr.n[N[1]],dlr.n[N[2]]
+        t1 = T[1]
+        θ = Theta[1]
+        θ = abs(π-θ)
+
+        k1 = kin * @SVector[1, 0, 0]
+        k2 = kout * @SVector[cos(θ), sin(θ), 0]
+
+        W1 = interaction(k1-k2, 0, t1)
+
+        factor =  legendre(cos(θ))*sin(θ)/2.0
+        r_0 = W1[2] * factor * exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (-t1)/β)
+        s_0 = W1[1] * factor 
     else
         result =  0.0+0.0*im
     end
@@ -177,7 +198,7 @@ function run(steps)
     N = MonteCarlo.Discrete(1, length(dlr.n))
     Theta = MonteCarlo.Angle()
 
-    dof = [[3,1,2,1],] # degrees of freedom of the normalization diagram and the bubble
+    dof = [[3,1,2,1],[1,0,2,1]] # degrees of freedom of the normalization diagram and the bubble
     obs = zeros(Float64,(length(dlr.n),length(dlr.n),2))
 
     #    nei = [[2,4],[3,1],[2,4],[1,3]]
