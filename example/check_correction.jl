@@ -4,7 +4,7 @@
 using QuantumStatistics, LinearAlgebra, Random, Printf, BenchmarkTools, InteractiveUtils, Parameters
 # using ProfileView
 using PyCall
-const Steps = 4e7
+const Steps = 1e6
 
 include("parameter.jl")
 include("../application/electron_gas/RPA.jl")
@@ -28,17 +28,25 @@ println("legendre(0.5)=",legendre(0.5))
 dlr = DLR.DLRGrid(:fermi, 10*EF,β, 1e-2)
 
 #
+# G(w,k)G(-w,-k)
+#
+
+function GG(n, ω, β)
+    return 1.0/( (π*(2n+1)/β)^2 + ω^2 )
+end
+
+#
 # gap-function
 #
 
-function Δ(ω, k)
-    return 1.0
+function Δ(n, k)
+    return GG(n,(k^2-kF^2),β)
 end
 
 #
 # interaction
 #
-
+const kgrid = Grid.fermiKUL(kF, 10kF, 0.01*sqrt(me^2/β/kF^2), 6,4) 
 const qgrid = Grid.boseKUL(kF, 10kF, 0.000001*sqrt(me^2/β/kF^2), 15,4) 
 const τgrid = Grid.tauUL(β, 0.0001, 11,4)
 const vqinv = [(q^2 + mass2) / (4π * e0^2) for q in qgrid.grid]
@@ -97,15 +105,15 @@ function integrand(config)
     kin, kout = 0.9kF, 1.1kF
 
     if config.curr == 1
-        T,K,N,Theta = config.var[1],config.var[2], config.var[3],config.var[4]
-        n1,n2 = dlr.n[N[1]],dlr.n[N[2]]
+        T,K,Ext1,Ext2,Theta,K2,N2 = config.var[1],config.var[2], config.var[3],config.var[4],config.var[5],config.var[6],config.var[7]
+        n1,n2 = dlr.n[Ext1[1]],N2[1]
         q = K[1]
         t1, t2, t3 = T[1], T[2], T[3]
         θ = Theta[1]
         θ = abs(π-θ)
 
-        k1 = kin * @SVector[1, 0, 0]
-        k2 = kout * @SVector[cos(θ), sin(θ), 0]
+        k1 = kgrid[Ext2[1]] * @SVector[1, 0, 0]
+        k2 = K2[1] * @SVector[cos(θ), sin(θ), 0]
 
         ω1 = (dot(q-k1, q-k1) - kF^2) * β
 
@@ -126,7 +134,8 @@ function integrand(config)
         W1 = interaction(q-k1-k2, 0.0, t2)
         W2 = interaction(q, (t1),(t3) )
 
-        factor = 1.0/(2π)^3 * legendre(cos(θ))*sin(θ)/2.0
+        ω0 = (dot(k2,k2)-kF^2)
+        factor = 1.0/(2π)^3 * legendre(cos(θ))*sin(θ)/2.0 * GG(n2, ω0,β) * Δ(n2,K2[1])
         r_r = W1[2]*W2[2]*g1*g2* factor*exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (t2-t3)/β)
         # s_r = W1[1]*W2[2]*g1*g2/β
         # r_s = W1[2]*W2[1]*g1*g2/β
@@ -162,7 +171,8 @@ function integrand(config)
         W1 = interaction(q, 0.0, t2)
         W2 = interaction(k1-k2, (t1),(t3) )
 
-        factor = 1.0/(2π)^3 * legendre(cos(θ))*sin(θ)/2.0
+        ω0 = (dot(k2,k2)-kF^2)
+        factor = 1.0/(2π)^3 * legendre(cos(θ))*sin(θ)/2.0 * GG(n2, ω0,β) * Δ(n2,K2[1])
         r_r = W1[2]*W2[2]*g1*g2* factor*exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (t2-t1)/β)
         # s_r = W1[1]*W2[2]*g1*g2/β
         # r_s = W1[2]*W2[1]*g1*g2/β
@@ -174,18 +184,19 @@ function integrand(config)
         result +=  (s_s+s_r+r_s+r_r) * 2.0
     elseif config.curr == 2
         # bare interaction
-        T,K,N,Theta = config.var[1],config.var[2], config.var[3],config.var[4]
-        n1,n2 = dlr.n[N[1]],dlr.n[N[2]]
+        T,K,Ext1,Ext2,Theta,K2,N2 = config.var[1],config.var[2], config.var[3],config.var[4],config.var[5],config.var[6],config.var[7]
+        n1,n2 = dlr.n[Ext1[1]],N2[1]
         t1 = T[1]
         θ = Theta[1]
         θ = abs(π-θ)
 
-        k1 = kin * @SVector[1, 0, 0]
-        k2 = kout * @SVector[cos(θ), sin(θ), 0]
+        k1 = kgrid[Ext2[1]] * @SVector[1, 0, 0]
+        k2 = K2[1] * @SVector[cos(θ), sin(θ), 0]
 
         W1 = interaction(k1-k2, 0, t1)
 
-        factor =  legendre(cos(θ))*sin(θ)/2.0
+        ω0 = (dot(k2,k2)-kF^2)
+        factor =  legendre(cos(θ))*sin(θ)/2.0 * GG(n2, ω0,β) * Δ(n2,K2[1])
         r_0 = W1[2] * factor * exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (-t1)/β)
         s_0 = W1[1] * factor 
     else
@@ -199,24 +210,29 @@ function measure(config)
     obs = config.observable
     factor = 1.0 / config.reweight[config.curr]
     weight = integrand(config)
-    obs[config.var[3][1],config.var[3][2],:] += weight / abs(weight) * factor
+    obs[config.var[3][1],config.var[4][1],:] += weight / abs(weight) * factor
 
 end
 
 function run(steps)
 
+
+
     T = MonteCarlo.Tau(β, β / 2.0)
     K = MonteCarlo.FermiK(3, kF, 0.2 * kF, 10.0 * kF)
-    N = MonteCarlo.Discrete(1, length(dlr.n))
+    Ext1 = MonteCarlo.Discrete(1, length(dlr.n))
+    Ext2 = MonteCarlo.Discrete(1, kgrid.size)
     Theta = MonteCarlo.Angle()
+    K2 = MonteCarlo.Tau(10.0*kF, kF)
+    N2 = MonteCarlo.Discrete(-floor(Int, 10EF/(2π/β)), floor(Int, 10EF/(2π/β)))
 
-    dof = [[3,1,2,1],[1,0,2,1]] # degrees of freedom of the normalization diagram and the bubble
-    obs = zeros(Float64,(length(dlr.n),length(dlr.n),2))
+    dof = [[3,1,1,1,1,1,1],[1,0,1,1,1,1,1]] # degrees of freedom of the normalization diagram and the bubble
+    obs = zeros(Float64,(length(dlr.n),kgrid.size,2))
 
     #    nei = [[2,4],[3,1],[2,4],[1,3]]
 
-    config = MonteCarlo.Configuration(steps, (T,K,N,Theta ), dof, obs)
-    avg, std = MonteCarlo.sample(config, integrand, measure; print=0, Nblock=4)
+    config = MonteCarlo.Configuration(steps, (T,K,Ext1,Ext2,Theta,K2,N2), dof, obs)
+    avg, std = MonteCarlo.sample(config, integrand, measure; print=0, Nblock=16)
     # @profview MonteCarlo.sample(config, integrand, measure; print=0, Nblock=1)
     # sleep(100)
 
@@ -226,19 +242,10 @@ function run(steps)
 
     if isnothing(avg) == false
 
-        println("fourier")
-        avg_c = avg[:,:,1]+im*avg[:,:,2]
-        avg_tw = (DLR.matfreq2tau(:fermi,avg_c,dlr,dlr.τ;axis=1,rtol=1e-2))
-        avg_tt = (DLR.matfreq2tau(:fermi,avg_tw,dlr,dlr.τ;axis=2,rtol=1e-2))
-
-        avg_wt = (DLR.tau2matfreq(:fermi,avg_tt,dlr,dlr.n;axis=1,rtol=1e-2))
-        avg_ww = (DLR.tau2matfreq(:fermi,avg_wt,dlr,dlr.n;axis=2,rtol=1e-2))
-        println(size(avg_ww))
-
         for i in 1:length(dlr.n)
-            for j in 1:length(dlr.n)
-                @printf("%d\t %d\t %10.6f ± %10.6f\t %10.6f\n",
-                        dlr.n[i],dlr.n[j], (avg[i,j,1]), (std[i,j,1]), real(avg_ww[i,j]))
+            for j in 1:kgrid.size
+                @printf("%d\t %10.6f\t %10.6f ± %10.6f\n",
+                        dlr.n[i],kgrid[j], (avg[i,j,1]), (std[i,j,1]))
             end
         end
 
