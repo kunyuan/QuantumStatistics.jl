@@ -4,7 +4,7 @@
 using QuantumStatistics, LinearAlgebra, Random, Printf, BenchmarkTools, InteractiveUtils, Parameters
 # using ProfileView
 using PyCall
-const Steps = 1e6
+const Steps = 4e7
 
 include("parameter.jl")
 include("../application/electron_gas/RPA.jl")
@@ -40,13 +40,13 @@ end
 #
 
 function Δ(n, k)
-    return GG(n,(k^2-kF^2),β)
+    return 1.0#GG(n,(k^2-kF^2),β)
 end
 
 #
 # interaction
 #
-const kgrid = Grid.fermiKUL(kF, 10kF, 0.01*sqrt(me^2/β/kF^2), 6,4) 
+const kgrid = Grid.fermiKUL(kF, 10kF, 0.01*sqrt(me^2/β/kF^2), 4,4) 
 const qgrid = Grid.boseKUL(kF, 10kF, 0.000001*sqrt(me^2/β/kF^2), 15,4) 
 const τgrid = Grid.tauUL(β, 0.0001, 11,4)
 const vqinv = [(q^2 + mass2) / (4π * e0^2) for q in qgrid.grid]
@@ -223,9 +223,10 @@ function run(steps)
     Ext1 = MonteCarlo.Discrete(1, length(dlr.n))
     Ext2 = MonteCarlo.Discrete(1, kgrid.size)
     Theta = MonteCarlo.Angle()
-    K2 = MonteCarlo.Tau(10.0*kF, kF)
-    N2 = MonteCarlo.Discrete(-floor(Int, 10EF/(2π/β)), floor(Int, 10EF/(2π/β)))
+    K2 = MonteCarlo.Tau(3.0*kF, kF)
+    N2 = MonteCarlo.Discrete(-floor(Int, 3EF/(2π/β)), floor(Int, 3EF/(2π/β)))
 
+#    dof = [[3,1,1,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
     dof = [[3,1,1,1,1,1,1],[1,0,1,1,1,1,1]] # degrees of freedom of the normalization diagram and the bubble
     obs = zeros(Float64,(length(dlr.n),kgrid.size,2))
 
