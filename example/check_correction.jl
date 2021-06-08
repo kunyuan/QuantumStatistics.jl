@@ -4,7 +4,7 @@
 using QuantumStatistics, LinearAlgebra, Random, Printf, BenchmarkTools, InteractiveUtils, Parameters, Dierckx
 # using ProfileView
 using PyCall
-const Steps = 4e7
+const Steps = 1e6
 
 include("parameter.jl")
 include("../application/electron_gas/RPA.jl")
@@ -54,13 +54,18 @@ delta_spl = Spline2D(MomBin,FreqBin,data)
 lamu = 0.2229769140136642
 
 function Δ(ω, k)
+    if ω<0
+        ω=-ω
+    end
     if ω<0.25
         return delta_spl(k/kF,ω/kF^2)*lamu#GG(n,(k^2-kF^2),β)
     else
         return delta_spl(k/kF,ω/kF^2)
+
+    end
 end
 
-println(delta_spl(0.9, 0.1))
+println(delta_spl(0.999, 0.001))
 
 #
 # interaction
@@ -207,6 +212,7 @@ function integrand(config)
     if config.curr==1
         T,K,Ext1,Ext2,Theta,K2,N2 = config.var[1],config.var[2], config.var[3],config.var[4],config.var[5],config.var[6],config.var[7]
         n1,n2 = dlr.n[Ext1[1]],N2[1]
+        ωout, ωin = π*(2n1+1)/β, π*(2n2+1)/β
         t1 = T[1]
         θ = Theta[1]
         θ = abs(π-θ)
@@ -217,9 +223,9 @@ function integrand(config)
         W1 = interaction(k1-k2, 0, t1)
 
         ω0 = (dot(k2,k2)-kF^2)
-        factor =  legendre(cos(θ))*sin(θ)/2.0 * GG(n2, ω0,β) * Δ(π*(2*n2+1)/β,K2[1])#*K2[1]
-        r_0 = W1[2] * factor * exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (-t1)/β)
-        s_0 = W1[1] * factor
+        factor =  legendre(cos(θ))*sin(θ)/2.0 * GG(ωin, ω0,β) * Δ(ωin,K2[1]) * kgrid[Ext2[1]]
+        r_0 = W1[2] * factor * exp(im*ωout * t1 ) * 2.0*cos(ωin * (-t1))
+        s_0 = W1[1] * factor * 2.0
 
         result += r_0 + s_0
     else
@@ -247,7 +253,7 @@ function run(steps)
     Ext2 = MonteCarlo.Discrete(1, kgrid.size)
     Theta = MonteCarlo.Angle()
     K2 = MonteCarlo.Tau(MomBin[end], kF)
-    N2 = MonteCarlo.Discrete(-floor(Int, 5EF/(2π/β)), floor(Int, 5EF/(2π/β)))
+    N2 = MonteCarlo.Discrete(0, floor(Int, 5EF/(2π/β)))
 
     dof = [[1,0,1,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
 #    dof = [[3,1,1,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
@@ -266,11 +272,20 @@ function run(steps)
 
 
     if isnothing(avg) == false
-
+        Δ_ext = zeros(Float64,(length(dlr.n),kgrid.size))
         for i in 1:length(dlr.n)
             for j in 1:kgrid.size
-                @printf("%d\t %10.6f\t %10.6f ± %10.6f \t %10.6f ± %10.6f\n",
-                        dlr.n[i],kgrid[j], (avg[i,j,1]), (std[i,j,1]),(avg[i,j,2]), (std[i,j,2]))
+                Δ_ext[i,j] = Δ(π*(2dlr.n[i]+1)/β,kgrid[j])
+            end
+        end
+        norm = sum(avg[:,:,1])/sum(Δ_ext)
+        avg, std = avg/norm, std/norm
+        for i in 1:length(dlr.n)
+            for j in 1:kgrid.size
+                @printf("%10.6f\t %10.6f\t %10.6f ± %10.6f \t %10.6f\n",
+                        dlr.n[i],kgrid[j],
+                        (avg[i,j,1]), (std[i,j,1]),#(avg[i,j,2]), (std[i,j,2]),
+                        Δ_ext[i,j])
             end
         end
 
