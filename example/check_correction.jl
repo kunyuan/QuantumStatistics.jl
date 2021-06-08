@@ -4,7 +4,7 @@
 using QuantumStatistics, LinearAlgebra, Random, Printf, BenchmarkTools, InteractiveUtils, Parameters, Dierckx
 # using ProfileView
 using PyCall
-const Steps = 1e6
+const Steps = 1e7
 
 include("parameter.jl")
 include("../application/electron_gas/RPA.jl")
@@ -31,8 +31,8 @@ dlr = DLR.DLRGrid(:fermi, 10*EF,β, 1e-2)
 # G(w,k)G(-w,-k)
 #
 
-function GG(n, ω, β)
-    return 1.0/( (π*(2n+1)/β)^2 + ω^2 )
+function GG(ωin, ω, β)
+    return 1.0/(ωin ^2 + ω^2 )
 end
 
 #
@@ -51,13 +51,13 @@ data = reshape(data,(length(MomBin),length(FreqBin)))
 
 delta_spl = Spline2D(MomBin,FreqBin,data)
 
-lamu = 0.2229769140136642
+const lamu = 0.2229769140136642
 
-function Δ(ω, k)
+function Δ(ω, k, isNormed = true)
     if ω<0
         ω=-ω
     end
-    if ω<0.25
+    if ω<0.25 && isNormed
         return delta_spl(k/kF,ω/kF^2)*lamu#GG(n,(k^2-kF^2),β)
     else
         return delta_spl(k/kF,ω/kF^2)
@@ -223,7 +223,7 @@ function integrand(config)
         W1 = interaction(k1-k2, 0, t1)
 
         ω0 = (dot(k2,k2)-kF^2)
-        factor =  legendre(cos(θ))*sin(θ)/2.0 * GG(ωin, ω0,β) * Δ(ωin,K2[1]) * kgrid[Ext2[1]]
+        factor =  -1.0/(2π)^2/β * legendre(cos(θ))*sin(θ)/2.0 * GG(ωin, ω0,β) * Δ(ωin,K2[1]) * kgrid[Ext2[1]]
         r_0 = W1[2] * factor * exp(im*ωout * t1 ) * 2.0*cos(ωin * (-t1))
         s_0 = W1[1] * factor * 2.0
 
@@ -275,11 +275,12 @@ function run(steps)
         Δ_ext = zeros(Float64,(length(dlr.n),kgrid.size))
         for i in 1:length(dlr.n)
             for j in 1:kgrid.size
-                Δ_ext[i,j] = Δ(π*(2dlr.n[i]+1)/β,kgrid[j])
+                Δ_ext[i,j] = Δ(π*(2dlr.n[i]+1)/β,kgrid[j],false)
             end
         end
         norm = sum(avg[:,:,1])/sum(Δ_ext)
         avg, std = avg/norm, std/norm
+        println("norm=$norm")
         for i in 1:length(dlr.n)
             for j in 1:kgrid.size
                 @printf("%10.6f\t %10.6f\t %10.6f ± %10.6f \t %10.6f\n",
