@@ -68,7 +68,7 @@ end
 println(delta_spl(0.999, 0.001))
 
 #ExtFreqBin = FreqBin[1:40]*kF^2
-ExtFreqBin = [π*(2*dlr.n[i]+1)/β for i in 1:length(dlr.n)][11:end-10]
+ExtFreqBin = [π*(2*dlr.n[i]+1)/β for i in 1:length(dlr.n)][17:end-3]
 
 #
 # interaction
@@ -131,88 +131,84 @@ function integrand(config)
     result = 0.0+0.0im
     kin, kout = 0.9kF, 1.1kF
 
-    # if config.curr == 1
-    #     T,K,Ext1,Ext2,Theta,K2,N2 = config.var[1],config.var[2], config.var[3],config.var[4],config.var[5],config.var[6],config.var[7]
-    #     n1,n2 = dlr.n[Ext1[1]],N2[1]
-    #     q = K[1]
-    #     t1, t2, t3 = T[1], T[2], T[3]
-    #     θ = Theta[1]
-    #     θ = abs(π-θ)
+    if config.curr == 2
+        T,K,Ext1,Ext2,Theta,K2,N2 = config.var[1],config.var[2], config.var[3],config.var[4],config.var[5],config.var[6],config.var[7]
+        n1,n2 = Ext1[1],N2[1]
+        ωout, ωin = ExtFreqBin[n1], π*(2n2+1)/β
+        q = K[1]
+        t1, t2, t3 = T[1], T[2], T[3]
+        θ = Theta[1]
+        θ = abs(π-θ)
 
-    #     k1 = kgrid[Ext2[1]] * @SVector[1, 0, 0]
-    #     k2 = K2[1] * @SVector[cos(θ), sin(θ), 0]
+        k1 = kgrid[Ext2[1]] * @SVector[1, 0, 0]
+        k2 = K2[1] * @SVector[cos(θ), sin(θ), 0]
 
-    #     ω1 = (dot(q-k1, q-k1) - kF^2) * β
+        ω1 = (dot(q-k1, q-k1) - kF^2) * β
 
-    #     ω2 = (dot(q-k2, q-k2) - kF^2) * β
+        ω2 = (dot(q-k2, q-k2) - kF^2) * β
 
-    #     τ1 = (-t3)/β
-    #     g1 = Spectral.kernelFermiT(τ1, ω1)
+        τ1 = (-t3)/β
+        g1 = Spectral.kernelFermiT(τ1, ω1)
 
-    #     τ3 = (-t1)/β
-    #     g3 = Spectral.kernelFermiT(τ3, ω1)
+        τ3 = (-t1)/β
+        g3 = Spectral.kernelFermiT(τ3, ω1)
 
-    #     τ2 = (t1-t2)/β
-    #     g2 = Spectral.kernelFermiT(τ2, ω2)
+        τ2 = (t1-t2)/β
+        g2 = Spectral.kernelFermiT(τ2, ω2)
 
-    #     τ4 = (t1)/β
-    #     g4 = Spectral.kernelFermiT(τ4, ω2)
+        τ4 = (t1)/β
+        g4 = Spectral.kernelFermiT(τ4, ω2)
 
-    #     W1 = interaction(q-k1-k2, 0.0, t2)
-    #     W2 = interaction(q, (t1),(t3) )
+        W1 = interaction(q-k1-k2, 0.0, t2)
+        W2 = interaction(q, (t1),(t3) )
 
-    #     ω0 = (dot(k2,k2)-kF^2)
-    #     factor = 1.0/(2π)^3 * legendre(cos(θ))*sin(θ)/2.0 * GG(n2, ω0,β) * Δ(π*(2*n2+1)/β,K2[1]) *K2[1]
-    #     r_r = W1[2]*W2[2]*g1*g2* factor*exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (t2-t3)/β)
-    #     # s_r = W1[1]*W2[2]*g1*g2/β
-    #     # r_s = W1[2]*W2[1]*g1*g2/β
-    #     # s_s = W1[1]*W2[1]*g1*g2
-    #     s_r = W1[1]*W2[2]*g1*g4* factor*exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (-t3)/β)
-    #     r_s = W1[2]*W2[1]*g2*g3* factor*exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (t2-t1)/β)
-    #     s_s = W1[1]*W2[1]*g3*g4* factor*exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (-t1)/β)
+        ω0 = (dot(k2,k2)-kF^2)
+        factor = -1.0/(2π)^3/(2π)^2/β * legendre(cos(θ))*sin(θ)/2.0 * GG(ωin, ω0,β) * Δ(ωin,K2[1]) * kgrid[Ext2[1]]
 
-    #     result =  (s_s+s_r+r_s+r_r)
+        r_r = W1[2]*W2[2]*g1*g2* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (t2-t3))
+        s_r = W1[1]*W2[2]*g1*g4* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (-t3))
+        r_s = W1[2]*W2[1]*g2*g3* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (t2-t1))
+        s_s = W1[1]*W2[1]*g3*g4* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (-t1))
 
-    #     ω1 = (dot(q-k1, q-k1) - kF^2) * β
+        result += (s_s+s_r+r_s+r_r)
 
-    #     ω2 = (dot(q-k2, q-k2) - kF^2) * β
+        # ω1 = (dot(q-k1, q-k1) - kF^2) * β
 
-    #     τ1 = (-t3)/β
-    #     g1 = Spectral.kernelFermiT(τ1, ω1)
+        # ω2 = (dot(q-k2, q-k2) - kF^2) * β
 
-    #     τ2 = (t3-t2)/β
-    #     g2 = Spectral.kernelFermiT(τ2, ω2)
+        τ1 = (-t3)/β
+        g1 = Spectral.kernelFermiT(τ1, ω1)
 
-    #     τ3 = (-t1)/β
-    #     g3 = Spectral.kernelFermiT(τ3, ω1)
+        τ2 = (t3-t2)/β
+        g2 = Spectral.kernelFermiT(τ2, ω2)
 
-    #     τ4 = (t3)/β
-    #     g4 = Spectral.kernelFermiT(τ4, ω2)
+        τ3 = (-t1)/β
+        g3 = Spectral.kernelFermiT(τ3, ω1)
 
-    #     τ6 = (t1-t2)/β
-    #     g6 = Spectral.kernelFermiT(τ6, ω2)
+        τ4 = (t3)/β
+        g4 = Spectral.kernelFermiT(τ4, ω2)
 
-    #     τ8 = (t1)/β
-    #     g8 = Spectral.kernelFermiT(τ4, ω2)
+        τ6 = (t1-t2)/β
+        g6 = Spectral.kernelFermiT(τ6, ω2)
 
-    #     W1 = interaction(q, 0.0, t2)
-    #     W2 = interaction(k1-k2, (t1),(t3) )
+        τ8 = (t1)/β
+        g8 = Spectral.kernelFermiT(τ4, ω2)
 
-    #     ω0 = (dot(k2,k2)-kF^2)
-    #     #        factor = 1.0/(2π)^3 * legendre(cos(θ))*sin(θ)/2.0 * GG(n2, ω0,β) * Δ(π*(2*n2+1)/β,K2[1])*K2[1]
-    #     r_r = W1[2]*W2[2]*g1*g2* factor*exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (t2-t1)/β)
-    #     # s_r = W1[1]*W2[2]*g1*g2/β
-    #     # r_s = W1[2]*W2[1]*g1*g2/β
-    #     # s_s = W1[1]*W2[1]*g1*g2
-    #     s_r = W1[1]*W2[2]*g1*g4* factor*exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (-t1)/β)
-    #     r_s = W1[2]*W2[1]*g3*g6* factor*exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (t2-t1)/β)
-    #     s_s = W1[1]*W2[1]*g3*g8* factor*exp(im*π*(2*n1+1) * t1 /β) * exp(im*π*(2*n2+1) * (-t1)/β)
+        W1 = interaction(q, 0.0, t2)
+        W2 = interaction(k1-k2, (t1),(t3) )
 
-    #     result +=  (s_s+s_r+r_s+r_r) * 2.0
+        ω0 = (dot(k2,k2)-kF^2)
+
+        r_r = W1[2]*W2[2]*g1*g2* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (t2-t1)/β)
+        s_r = W1[1]*W2[2]*g1*g4* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (-t1)/β)
+        r_s = W1[2]*W2[1]*g3*g6* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (t2-t1)/β)
+        s_s = W1[1]*W2[1]*g3*g8* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (-t1)/β)
+
+        result +=  (s_s+s_r+r_s+r_r) * 2.0
 
     # elseif config.curr == 2
     # bare interaction
-    if config.curr==1
+    elseif config.curr==1
         T,K,Ext1,Ext2,Theta,K2,N2 = config.var[1],config.var[2], config.var[3],config.var[4],config.var[5],config.var[6],config.var[7]
         n1,n2 = Ext1[1],N2[1]
         ωout, ωin = ExtFreqBin[n1], π*(2n2+1)/β
@@ -256,7 +252,8 @@ function run(steps)
     K2 = MonteCarlo.Tau(MomBin[end], kF)
     N2 = MonteCarlo.Discrete(0, floor(Int, 5EF/(2π/β)))
 
-    dof = [[1,0,1,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
+#    dof = [[1,0,1,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
+    dof = [[1,0,1,1,1,1,1],[3,1,1,1,1,1,1]] # degrees of freedom of the normalization diagram and the bubble
 #    dof = [[3,1,1,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
 #    dof = [[3,1,1,1,1,1,1],[1,0,1,1,1,1,1]] # degrees of freedom of the normalization diagram and the bubble
     obs = zeros(Float64,(length(ExtFreqBin),kgrid.size,2))
@@ -280,8 +277,9 @@ function run(steps)
             end
         end
         norm = sum( abs.(avg[:,:,1]))/sum( abs.(Δ_ext) )
-        avg, std = avg/norm, std/norm
         println("norm=$norm")
+        norm = 1.0
+        avg, std = avg/norm, std/norm
         for i in 1:length(ExtFreqBin)
             for j in 1:kgrid.size
                 @printf("%10.6f\t %10.6f\t %10.6f ± %10.6f \t %10.6f\n",
