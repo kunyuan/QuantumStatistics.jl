@@ -26,20 +26,53 @@ end
 println("legendre(0.5)=",legendre(0.5))
 
 dlr = DLR.DLRGrid(:fermi, 10*EF,β, 1e-2)
+const kgrid = Grid.fermiKUL(kF, 9kF, 0.00001kF, 4,4) 
 
 #
 # G(w,k)G(-w,-k)
 #
 
-function GG(ωin, ω, β)
-    return 1.0/(ωin ^2 + ω^2 )
+dataFileName = "../../data_from_t/s/sigma_96.dat"
+
+f = open(dataFileName, "r")
+
+readline(f)
+MomBin = map(x->parse(Float64,x),split(readline(f)," ")[1:end-1])
+FreqBin = map(x->parse(Float64,x),split(readline(f)," ")[1:end-1])
+data1 = map(x->parse(Float64,x),split(readline(f)," ")[1:end-1])
+data2 = map(x->parse(Float64,x),split(readline(f)," ")[1:end-1])
+
+#data1,data2 = reshape(data1,(length(MomBin),length(FreqBin))),reshape(data2,(length(MomBin),length(FreqBin)))
+# sigmaR_spl = Spline2D(MomBin,FreqBin,data1)
+# sigmaI_spl = Spline2D(MomBin,FreqBin,data2)
+
+data1,data2 = reshape(data1,(length(FreqBin),length(MomBin))),reshape(data2,(length(FreqBin),length(MomBin)))
+sigmaR_spl = Spline2D(FreqBin,MomBin,data1)
+sigmaI_spl = Spline2D(FreqBin,MomBin,data2)
+
+println("ΣR=",sigmaR_spl(0.0, 1.0),"\tΣI=",sigmaI_spl(0.0, 1.0))
+#println("ΣR=",sigmaR_spl(1.0, 0.0),"\tΣI=",sigmaI_spl(1.0, 0.0))
+
+for i in 1:kgrid.size
+    @printf("%10.6f\t %10.6f\n",
+            kgrid[i]/kF,sigmaR_spl(0.0, kgrid[i]/kF))
+end
+
+function GG(ωin, k, β=1.0)
+    ω = k^2-kF^2
+    factor = kF^2
+    # ΣR = sigmaR_spl(k/kF, ωin/kF^2)*factor
+    # ΣI = sigmaI_spl(k/kF, ωin/kF^2)*factor
+    ΣR = sigmaR_spl( ωin/kF^2,k/kF)*factor
+    ΣI = sigmaI_spl( ωin/kF^2,k/kF)*factor
+    return 1.0/((ωin-ΣI) ^2 + (ω+ΣR)^2 )
 end
 
 #
 # gap-function
 #
 
-dataFileName = "../../data_from_t/data1/delta_56.dat"
+dataFileName = "../../data_from_t/s/delta_96.dat"
 
 f = open(dataFileName, "r")
 
@@ -53,12 +86,12 @@ delta_spl = Spline2D(MomBin,FreqBin,data)
 
 const lamu = 0.2229769140136642
 
-function Δ(ω, k, isNormed = true)
+function Δ(ω, k, isNormed = false)
     if ω<0
         ω=-ω
     end
     if ω/kF^2<0.25 && isNormed
-        return delta_spl(k/kF,ω/kF^2)*lamu#GG(n,(k^2-kF^2),β)
+        return delta_spl(k/kF,ω/kF^2)*lamu
     else
         return delta_spl(k/kF,ω/kF^2)
 
@@ -73,7 +106,7 @@ ExtFreqBin = [π*(2*dlr.n[i]+1)/β for i in 1:length(dlr.n)][16:end-3]
 #
 # interaction
 #
-const kgrid = Grid.fermiKUL(kF, 9kF, 0.00001kF, 4,4) 
+
 const qgrid = Grid.boseKUL(kF, 10kF, 0.000001*sqrt(me^2/β/kF^2), 15,4) 
 const τgrid = Grid.tauUL(β, 0.0001, 11,4)
 const vqinv = [(q^2 + mass2) / (4π * e0^2) for q in qgrid.grid]
@@ -162,8 +195,7 @@ function integrand(config)
         W1 = interaction(q-k1-k2, 0.0, t2)
         W2 = interaction(q, (t1),(t3) )
 
-        ω0 = (dot(k2,k2)-kF^2)
-        factor = -1.0/(2π)^3/(2π)^2/β * legendre(cos(θ))*sin(θ)/2.0 * GG(ωin, ω0,β) * Δ(ωin,K2[1]) * kgrid[Ext2[1]]
+        factor = -1.0/(2π)^3/(2π)^2/β * legendre(cos(θ))*sin(θ)/2.0 * GG(ωin, K2[1],β) * Δ(ωin,K2[1]) * kgrid[Ext2[1]]*K2[1]
 
         r_r = W1[2]*W2[2]*g1*g2* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (t2-t3))
         s_r = W1[1]*W2[2]*g1*g4* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (-t3))
@@ -197,8 +229,6 @@ function integrand(config)
         # W1 = interaction(q, 0.0, t2)
         # W2 = interaction(k1-k2, (t1),(t3) )
 
-        # ω0 = (dot(k2,k2)-kF^2)
-
         # r_r = W1[2]*W2[2]*g1*g2* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (t2-t1)/β)
         # s_r = W1[1]*W2[2]*g1*g4* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (-t1)/β)
         # r_s = W1[2]*W2[1]*g3*g6* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (t2-t1)/β)
@@ -220,8 +250,7 @@ function integrand(config)
 
         W1 = interaction(k1-k2, 0, t1)
 
-        ω0 = (dot(k2,k2)-kF^2)
-        factor =  -1.0/(2π)^2/β * legendre(cos(θ))*sin(θ)/2.0 * GG(ωin, ω0,β) * Δ(ωin,K2[1]) * kgrid[Ext2[1]]
+        factor =  -1.0/(2π)^2/β * legendre(cos(θ))*sin(θ)/2.0 * GG(ωin, K2[1]) * Δ(ωin,K2[1]) * kgrid[Ext2[1]]*K2[1]
         r_0 = W1[2] * factor * exp(im*ωout * t1 ) * 2.0*cos(ωin * (-t1))
         s_0 = W1[1] * factor * 2.0
 
