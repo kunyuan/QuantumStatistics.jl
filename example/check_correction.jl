@@ -4,7 +4,7 @@
 using QuantumStatistics, LinearAlgebra, Random, Printf, BenchmarkTools, InteractiveUtils, Parameters, Dierckx
 # using ProfileView
 using PyCall
-const Steps = 1e8
+const Steps = 1e7
 
 include("parameter.jl")
 include("../application/electron_gas/RPA.jl")
@@ -26,13 +26,14 @@ end
 println("legendre(0.5)=",legendre(0.5))
 
 dlr = DLR.DLRGrid(:fermi, 10*EF,β, 1e-2)
-const kgrid = Grid.fermiKUL(kF, 9kF, 0.00001kF, 3,3) 
+#const kgrid = Grid.fermiKUL(kF, 9kF, 0.001kF, 1,1) 
+const kgrid = Grid.Uniform{Float64, 2}(kF, 1.001kF,[false, false])
 
 #
 # G(w,k)G(-w,-k)
 #
 
-dataFileName = "../../data_from_t/s/sigma_96.dat"
+dataFileName = "../../data_from_t/s/sigma_32.dat"
 
 f = open(dataFileName, "r")
 
@@ -72,7 +73,7 @@ end
 # gap-function
 #
 
-dataFileName = "../../data_from_t/s/delta_96.dat"
+dataFileName = "../../data_from_t/s/delta_32.dat"
 
 f = open(dataFileName, "r")
 
@@ -84,8 +85,9 @@ data = reshape(data,(length(MomBin),length(FreqBin)))
 
 delta_spl = Spline2D(MomBin,FreqBin,data)
 
-const lamu = 0.2229769140136642
+#const lamu = 0.2229769140136642
 
+const lamu = 0.022316536295345996
 function Δ(ω, k, isNormed = false)
     if ω<0
         ω=-ω
@@ -101,7 +103,8 @@ end
 println(delta_spl(0.999, 0.001))
 
 #ExtFreqBin = FreqBin[1:40]*kF^2
-ExtFreqBin = [π*(2*dlr.n[i]+1)/β for i in 1:length(dlr.n)][16:23]
+ExtFreqBin = [π*(2*dlr.n[i]+1)/β for i in 1:length(dlr.n)][16:17]
+#ExtFreqBin = [π*(2*dlr.n[i]+1)/β for i in 1:length(dlr.n)]
 
 #
 # interaction
@@ -204,37 +207,37 @@ function integrand(config)
 
         result += (s_s+s_r+r_s+r_r)
 
-        # ω1 = (dot(q-k1, q-k1) - kF^2) * β
+        ω1 = (dot(q-k1, q-k1) - kF^2) * β
 
-        # ω2 = (dot(q-k2, q-k2) - kF^2) * β
+        ω2 = (dot(q-k2, q-k2) - kF^2) * β
 
-        # τ1 = (-t3)/β
-        # g1 = Spectral.kernelFermiT(τ1, ω1)
+        τ1 = (-t3)/β
+        g1 = Spectral.kernelFermiT(τ1, ω1)
 
-        # τ2 = (t3-t2)/β
-        # g2 = Spectral.kernelFermiT(τ2, ω2)
+        τ2 = (t3-t2)/β
+        g2 = Spectral.kernelFermiT(τ2, ω2)
 
-        # τ3 = (-t1)/β
-        # g3 = Spectral.kernelFermiT(τ3, ω1)
+        τ3 = (-t1)/β
+        g3 = Spectral.kernelFermiT(τ3, ω1)
 
-        # τ4 = (t3)/β
-        # g4 = Spectral.kernelFermiT(τ4, ω2)
+        τ4 = (t3)/β
+        g4 = Spectral.kernelFermiT(τ4, ω2)
 
-        # τ6 = (t1-t2)/β
-        # g6 = Spectral.kernelFermiT(τ6, ω2)
+        τ6 = (t1-t2)/β
+        g6 = Spectral.kernelFermiT(τ6, ω2)
 
-        # τ8 = (t1)/β
-        # g8 = Spectral.kernelFermiT(τ4, ω2)
+        τ8 = (t1)/β
+        g8 = Spectral.kernelFermiT(τ4, ω2)
 
-        # W1 = interaction(q, 0.0, t2)
-        # W2 = interaction(k1-k2, (t1),(t3) )
+        W1 = interaction(q, 0.0, t2)
+        W2 = interaction(k1-k2, (t1),(t3) )
 
-        # r_r = W1[2]*W2[2]*g1*g2* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (t2-t1)/β)
-        # s_r = W1[1]*W2[2]*g1*g4* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (-t1)/β)
-        # r_s = W1[2]*W2[1]*g3*g6* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (t2-t1)/β)
-        # s_s = W1[1]*W2[1]*g3*g8* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (-t1)/β)
+        r_r = W1[2]*W2[2]*g1*g2* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (t2-t1)/β)
+        s_r = W1[1]*W2[2]*g1*g4* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (-t1)/β)
+        r_s = W1[2]*W2[1]*g3*g6* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (t2-t1)/β)
+        s_s = W1[1]*W2[1]*g3*g8* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (-t1)/β)
 
-        # result +=  (s_s+s_r+r_s+r_r) * 2.0
+        result +=  (s_s+s_r+r_s+r_r) * 2.0
 
     # bare interaction
     elseif config.curr==1
