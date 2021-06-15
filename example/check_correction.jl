@@ -26,7 +26,7 @@ end
 println("legendre(0.5)=",legendre(0.5))
 
 dlr = DLR.DLRGrid(:fermi, 10*EF,β, 1e-2)
-const kgrid = Grid.fermiKUL(kF, 9kF, 0.00001kF, 4,4) 
+const kgrid = Grid.fermiKUL(kF, 9kF, 0.00001kF, 3,3) 
 
 #
 # G(w,k)G(-w,-k)
@@ -53,10 +53,10 @@ sigmaI_spl = Spline2D(FreqBin,MomBin,data2)
 println("ΣR=",sigmaR_spl(0.0, 1.0),"\tΣI=",sigmaI_spl(0.0, 1.0))
 #println("ΣR=",sigmaR_spl(1.0, 0.0),"\tΣI=",sigmaI_spl(1.0, 0.0))
 
-for i in 1:kgrid.size
-    @printf("%10.6f\t %10.6f\n",
-            kgrid[i]/kF,sigmaR_spl(0.0, kgrid[i]/kF))
-end
+# for i in 1:kgrid.size
+#     @printf("%10.6f\t %10.6f\n",
+#             kgrid[i]/kF,sigmaR_spl(0.0, kgrid[i]/kF))
+# end
 
 function GG(ωin, k, β=1.0)
     ω = k^2-kF^2
@@ -101,7 +101,7 @@ end
 println(delta_spl(0.999, 0.001))
 
 #ExtFreqBin = FreqBin[1:40]*kF^2
-ExtFreqBin = [π*(2*dlr.n[i]+1)/β for i in 1:length(dlr.n)][16:end-3]
+ExtFreqBin = [π*(2*dlr.n[i]+1)/β for i in 1:length(dlr.n)][16:23]
 
 #
 # interaction
@@ -301,7 +301,7 @@ function run(steps)
         Δ_ext = zeros(Float64,(length(ExtFreqBin),kgrid.size))
         for i in 1:length(ExtFreqBin)
             for j in 1:kgrid.size
-                Δ_ext[i,j] = Δ(ExtFreqBin[i],kgrid[j],false)
+                Δ_ext[i,j] = Δ(ExtFreqBin[i],kgrid[j],true)
             end
         end
         norm = sum( abs.(avg[:,:,1]))/sum( abs.(Δ_ext) )
