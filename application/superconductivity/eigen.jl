@@ -94,20 +94,22 @@ end
 end
 
 function dH1(k, p, τ)
-    g = 1.0
+    g = e0^2
     gh = sqrt(g)
-    if abs(k - p) > 1.0e-12
-        return -2π * gh^3 * log((abs(k - p) + g) / abs(k - p)) * (exp(-gh * τ) + exp(-gh * (β - τ))) / (1 - exp(-gh * β))
+    if abs(k - p) > 1.0e-7
+        return -2π * gh^3 * (log((abs(k - p) + gh)) -log( abs(k - p))) * (exp(-gh * τ) + exp(-gh * (β - τ))) / (1 - exp(-gh * β))
+        #return -2π * gh^3 * (log((abs(k - p) + gh))) * (exp(-gh * τ) + exp(-gh * (β - τ))) / (1 - exp(-gh * β))
     else
-        return 0.0
+        return 0.01
 end
 end
 
 function bare(k, p)
-    if abs(k - p) > 1.0e-12
-        return 4π * e0^2 * log((k + p) / abs(k - p))
+    if abs(k - p) > 1.0e-7
+        return 4π * e0^2 * (log(k + p) - log(abs(k - p)))
+        #return 4π * e0^2 * log(k + p)         
     else
-        return 0.0
+        return 0.01
 end
 end
 
@@ -131,9 +133,9 @@ if abspath(PROGRAM_FILE) == @__FILE__
     fdlr = DLR.DLRGrid(:fermi, 10EF, β, 1e-10) 
                 
     ########## non-uniform kgrid #############
-    kgrid, wkgrid = KGrid(16,10)
-    kgrid_double, wkgrid_double = KGrid(32,10)
-
+    kgrid, wkgrid = KGrid(16,18)
+    kgrid_double, wkgrid_double = KGrid(16,24)
+    println(sum(wkgrid))
     ########## uniform K grid  ##############
     # MaxK = 5.0 * kF
     # Nk = 256
@@ -144,16 +146,17 @@ if abspath(PROGRAM_FILE) == @__FILE__
     Δ = zeros(Float64, (fdlr.size, length(kgrid)))
     Δ0 = zeros(Float64, length(kgrid)) .+ 1.0
     F = calcF(Δ0, Δ, fdlr, kgrid)
-    #println(wkgrid)
+    println("sumF",sum(F),maximum(abs.(F)))
     Δ0, Δ = calcΔ(F, fdlr, kgrid, kgrid, wkgrid)
     Δ_freq = DLR.tau2matfreq(:fermi, Δ, fdlr, fdlr.n, axis=1)
 
     Δ_2 = zeros(Float64, (fdlr.size, length(kgrid_double)))
     Δ0_2 = zeros(Float64, length(kgrid_double)) .+ 1.0
     F = calcF(Δ0_2, Δ_2, fdlr, kgrid_double)
+    println(sum(F))
     Δ0_double, Δ_double = calcΔ(F, fdlr, kgrid, kgrid_double, wkgrid_double)
     #Δ_freq = DLR.tau2matfreq(:fermi, Δ, fdlr, fdlr.n, axis=1)
-    println("error=",maximum(abs.(Δ0-Δ0_double)))
+    println(maximum(abs.(Δ0-Δ0_double)))
 
     filename = "./test.dat"
     println(fdlr.n,fdlr.n[fdlr.size÷2+1])
