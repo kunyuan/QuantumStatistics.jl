@@ -13,16 +13,15 @@ calculate the F function in τ-k representation
 - kgrid: momentum grid
 - fdlr::DLRGrid: DLR Grid that contains the imaginary-time grid
 """
-function calcF(Δ, fdlr, kgrid)
-    ngrid = fdlr.n
+function calcF(Δ0, Δ, fdlr, kgrid)
     Δ = DLR.tau2matfreq(:fermi, Δ, fdlr, fdlr.n, axis=1)
-    F = similar(Δ)
+    F = zeros(ComplexF64, (fdlr.size, length(kgrid)))
     for (ki, k) in enumerate(kgrid)
         ω = k^2 / (2me) - EF
-        for (ni, n) in enumerate(ngrid)
+        for (ni, n) in enumerate(fdlr.n)
             np = n # matsubara freqeuncy index for the upper G: (2np+1)π/β
             nn = -n - 1 # matsubara freqeuncy for the upper G: (2nn+1)π/β = -(2np+1)π/β
-            F[ni, ki] = Δ[ni, ki] * Spectral.kernelFermiΩ(nn, ω, β) * Spectral.kernelFermiΩ(np, ω, β)
+            F[ni, ki] = (Δ[ni, ki]+Δ0[ki]) * Spectral.kernelFermiΩ(nn, ω, β) * Spectral.kernelFermiΩ(np, ω, β)
     end
 end
     F = DLR.matfreq2tau(:fermi, F, fdlr, fdlr.τ, axis=1)
@@ -48,7 +47,6 @@ end
 end
 
 function calcΔ(F, fdlr, kgrid, wkgrid)
-    Δ = similar(F)
     Δ0 = zeros(Float64, length(kgrid))
     Δ = zeros(Float64, (fdlr.size, length(kgrid)))
     for (ki, k) in enumerate(kgrid)
@@ -60,7 +58,7 @@ function calcΔ(F, fdlr, kgrid, wkgrid)
             end
         end
     end
-    return Δ 
+    return Δ0,Δ 
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
@@ -72,8 +70,9 @@ if abspath(PROGRAM_FILE) == @__FILE__
     kgrid = LinRange(0.0, MaxK, Nk) .+ dK / 2.0
     wkgrid = [Nk / MaxK for i in 1:Nk]
     # Δ = zeros(ComplexF64, (fdlr.size, Nk)) .+ 1.0
-    Δ = zeros(Float64, (fdlr.size, Nk)) .+ 1.0
-    F = calcF(Δ, fdlr, kgrid)
-    Δ = calcΔ(F, fdlr, kgrid, wkgrid)
+    Δ = zeros(Float64, (fdlr.size, Nk))
+    Δ0 = zeros(Float64, Nk) .+ 1.0
+    F = calcF(Δ0, Δ, fdlr, kgrid)
+    Δ0, Δ = calcΔ(F, fdlr, kgrid, wkgrid)
     println(Δ[1, :])
 end
