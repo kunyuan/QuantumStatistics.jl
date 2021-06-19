@@ -74,5 +74,5 @@ if abspath(PROGRAM_FILE) == @__FILE__
     Δ0 = zeros(Float64, Nk) .+ 1.0
     F = calcF(Δ0, Δ, fdlr, kgrid)
     Δ0, Δ = calcΔ(F, fdlr, kgrid, wkgrid)
-    println(Δ[1, :])
+    println(Δ0[:], Δ[1, :])
 end
