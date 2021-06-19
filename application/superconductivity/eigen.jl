@@ -1,6 +1,7 @@
 using StaticArrays:similar
 using QuantumStatistics
 using FastGaussQuadrature
+using Printf
 include("parameter.jl")
 
 
@@ -34,11 +35,11 @@ include("parameter.jl")
 #                     G[τi] += (b - a) / 2 * wl[jj] * ker * sqrt(1 - x^2)
 #             end
 
-function KGrid()
+function KGrid(Order, Nk)
     maxK = 10.0
     minK = 0.001
-    Nk = 10
-    Order = 8 # Legendre polynomial order
+    #Nk = 10
+    #Order = 8 # Legendre polynomial order
     panel = Grid.boseKUL(0.5 * kF, maxK, minK, Nk, 1).grid
     panel[1] = 0.0  # the kgrid start with 0.0
     println("Panels Num: ", length(panel))
@@ -48,9 +49,9 @@ function KGrid()
     println("Guassian quadrature points : ", x)
     println("Guassian quadrature weights: ", w)
 
-    println("KGrid Num: ", length(panel) * Order)
+    println("KGrid Num: ", (length(panel)-1) * Order + 1)
 
-    kgrid = zeros(Float64, length(panel) * Order)
+    kgrid = zeros(Float64, (length(panel)-1) * Order + 1)
     wkgrid = similar(kgrid)
 
     for pidx in 1:length(panel) - 1
@@ -62,6 +63,7 @@ function KGrid()
             wkgrid[idx] = (b - a) / 2 * w[o]
         end
     end
+    kgrid[length(kgrid)]=maxK
     return kgrid, wkgrid
 end
 
@@ -109,11 +111,11 @@ function bare(k, p)
 end
 end
 
-function calcΔ(F, fdlr, kgrid, wkgrid)
+function calcΔ(F, fdlr, kgrid, qgrid, wkgrid)
     Δ0 = zeros(Float64, length(kgrid))
     Δ = zeros(Float64, (fdlr.size, length(kgrid)))
     for (ki, k) in enumerate(kgrid)
-        for (qi, q) in enumerate(kgrid)
+        for (qi, q) in enumerate(qgrid)
             Δ0[ki] += bare(k, q) * F[1, qi] * wkgrid[qi]  # TODO: check -F(0^-, q)==F(0^+, q)
             for (τi, τ) in enumerate(fdlr.τ)
                 # Δ[τi, ki] += dW[τi, qi, ki] * F[τi, qi] * wkgrid[qi]
@@ -129,7 +131,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
     fdlr = DLR.DLRGrid(:fermi, 10EF, β, 1e-10) 
                 
     ########## non-uniform kgrid #############
-    kgrid, wkgrid = KGrid()
+    kgrid, wkgrid = KGrid(16,10)
+    kgrid_double, wkgrid_double = KGrid(32,10)
 
     ########## uniform K grid  ##############
     # MaxK = 5.0 * kF
@@ -141,6 +144,22 @@ if abspath(PROGRAM_FILE) == @__FILE__
     Δ = zeros(Float64, (fdlr.size, length(kgrid)))
     Δ0 = zeros(Float64, length(kgrid)) .+ 1.0
     F = calcF(Δ0, Δ, fdlr, kgrid)
-    Δ0, Δ = calcΔ(F, fdlr, kgrid, wkgrid)
-    println(Δ0[:], Δ[1, :])
+    #println(wkgrid)
+    Δ0, Δ = calcΔ(F, fdlr, kgrid, kgrid, wkgrid)
+    Δ_freq = DLR.tau2matfreq(:fermi, Δ, fdlr, fdlr.n, axis=1)
+
+    Δ_2 = zeros(Float64, (fdlr.size, length(kgrid_double)))
+    Δ0_2 = zeros(Float64, length(kgrid_double)) .+ 1.0
+    F = calcF(Δ0_2, Δ_2, fdlr, kgrid_double)
+    Δ0_double, Δ_double = calcΔ(F, fdlr, kgrid, kgrid_double, wkgrid_double)
+    #Δ_freq = DLR.tau2matfreq(:fermi, Δ, fdlr, fdlr.n, axis=1)
+    println("error=",maximum(abs.(Δ0-Δ0_double)))
+
+    filename = "./test.dat"
+    println(fdlr.n,fdlr.n[fdlr.size÷2+1])
+    open(filename, "w") do io
+        for r in 1:length(kgrid)
+            @printf(io, "%32.17g  %32.17g  %32.17g\n",kgrid[r] ,Δ0[r] ,real(Δ_freq[fdlr.size÷2+1,r]))
+        end
+    end
 end
