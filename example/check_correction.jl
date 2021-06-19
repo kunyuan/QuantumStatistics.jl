@@ -33,7 +33,7 @@ const kgrid = Grid.Uniform{Float64, 2}(kF, 1.001kF,[false, false])
 # G(w,k)G(-w,-k)
 #
 
-dataFileName = "../../data_from_t/s/sigma_32.dat"
+dataFileName = "../../data_from_t/s_largeT/sigma_0.dat"
 
 f = open(dataFileName, "r")
 
@@ -73,7 +73,7 @@ end
 # gap-function
 #
 
-dataFileName = "../../data_from_t/s/delta_32.dat"
+dataFileName = "../../data_from_t/s_largeT/delta_0.dat"
 
 f = open(dataFileName, "r")
 
@@ -87,7 +87,7 @@ delta_spl = Spline2D(MomBin,FreqBin,data)
 
 #const lamu = 0.2229769140136642
 
-const lamu = 0.022316536295345996
+const lamu = 0.0023647150936035926
 function Δ(ω, k, isNormed = false)
     if ω<0
         ω=-ω
@@ -102,8 +102,9 @@ end
 
 println(delta_spl(0.999, 0.001))
 
-#ExtFreqBin = FreqBin[1:40]*kF^2
-ExtFreqBin = [π*(2*dlr.n[i]+1)/β for i in 1:length(dlr.n)][16:17]
+ExtFreqBin = FreqBin[1:20]*kF^2
+#half = Base.floor(Int, length(dlr.n)/2)
+#ExtFreqBin = [π*(2*dlr.n[i]+1)/β for i in 1:length(dlr.n)][half:end]
 #ExtFreqBin = [π*(2*dlr.n[i]+1)/β for i in 1:length(dlr.n)]
 
 #
@@ -111,7 +112,7 @@ ExtFreqBin = [π*(2*dlr.n[i]+1)/β for i in 1:length(dlr.n)][16:17]
 #
 
 const qgrid = Grid.boseKUL(kF, 10kF, 0.000001*sqrt(me^2/β/kF^2), 15,4) 
-const τgrid = Grid.tauUL(β, 0.0001, 11,4)
+const τgrid = Grid.tauUL(β, 0.000001, 11,10)
 const vqinv = [(q^2 + mass2) / (4π * e0^2) for q in qgrid.grid]
 # println(qgrid.grid)
 # println(τgrid.grid)
@@ -200,12 +201,12 @@ function integrand(config)
 
         factor = -1.0/(2π)^3/(2π)^2/β * legendre(cos(θ))*sin(θ)/2.0 * GG(ωin, K2[1],β) * Δ(ωin,K2[1]) * kgrid[Ext2[1]]*K2[1]
 
-        r_r = W1[2]*W2[2]*g1*g2* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (t2-t3))
-        s_r = W1[1]*W2[2]*g1*g4* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (-t3))
-        r_s = W1[2]*W2[1]*g2*g3* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (t2-t1))
-        s_s = W1[1]*W2[1]*g3*g4* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (-t1))
+        r_r = W1[2]*W2[2]*g1*g2* factor*exp(im*ωout * t1 ) * 2.0*cos(ωin * (t2-t3))
+        s_r = W1[1]*W2[2]*g1*g4* factor*exp(im*ωout * t1 ) * 2.0*cos(ωin * (-t3))
+        r_s = W1[2]*W2[1]*g2*g3* factor*exp(im*ωout * t1 ) * 2.0*cos(ωin * (t2-t1))
+        s_s = W1[1]*W2[1]*g3*g4* factor*exp(im*ωout * t1 ) * 2.0*cos(ωin * (-t1))
 
-        result += (s_s+s_r+r_s+r_r)
+#        result += (s_s+s_r+r_s+r_r)
 
         ω1 = (dot(q-k1, q-k1) - kF^2) * β
 
@@ -232,12 +233,12 @@ function integrand(config)
         W1 = interaction(q, 0.0, t2)
         W2 = interaction(k1-k2, (t1),(t3) )
 
-        r_r = W1[2]*W2[2]*g1*g2* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (t2-t1)/β)
-        s_r = W1[1]*W2[2]*g1*g4* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (-t1)/β)
-        r_s = W1[2]*W2[1]*g3*g6* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (t2-t1)/β)
-        s_s = W1[1]*W2[1]*g3*g8* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (-t1)/β)
+        r_r = W1[2]*W2[2]*g1*g2* factor*exp(im*ωout * t1 ) * 2.0*cos(ωin * (t2-t1)/β)
+        s_r = W1[1]*W2[2]*g1*g4* factor*exp(im*ωout * t1 ) * 2.0*cos(ωin * (-t1)/β)
+        r_s = W1[2]*W2[1]*g3*g6* factor*exp(im*ωout * t1 ) * 2.0*cos(ωin * (t2-t1)/β)
+        s_s = W1[1]*W2[1]*g3*g8* factor*exp(im*ωout * t1 ) * 2.0*cos(ωin * (-t1)/β)
 
-        result +=  (s_s+s_r+r_s+r_r) * 2.0
+        result -=  (s_s+s_r+r_s+r_r) * 2.0
 
     # bare interaction
     elseif config.curr==1
@@ -283,8 +284,8 @@ function run(steps)
     K2 = MonteCarlo.Tau(MomBin[end]*kF, kF)
     N2 = MonteCarlo.Discrete(0, floor(Int, FreqBin[end]/(2π/β*EF)-0.5))
 
-    dof = [[1,0,1,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
-#    dof = [[1,0,1,1,1,1,1],[3,1,1,1,1,1,1]] # degrees of freedom of the normalization diagram and the bubble
+#    dof = [[1,0,1,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
+    dof = [[1,0,1,1,1,1,1],[3,1,1,1,1,1,1]] # degrees of freedom of the normalization diagram and the bubble
 #    dof = [[3,1,1,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
 #    dof = [[3,1,1,1,1,1,1],[1,0,1,1,1,1,1]] # degrees of freedom of the normalization diagram and the bubble
     obs = zeros(Float64,(length(ExtFreqBin),kgrid.size,2))

@@ -10,8 +10,8 @@ const spin = 2  # number of spins
 const rs = 2.0
 const kF = (dim == 3) ? (9π / (2spin))^(1 / 3) / rs : sqrt(4 / spin) / rs
 const EF = kF^2 / (2me)
-const β = 250.0 / kF^2
-const mass2 = 0.001#0.000001
+const β = 25.0 / kF^2
+const mass2 = 0.0#0.000001
 
 const Weight = SVector{2,Float64}
 const Base.abs(w::Weight) = abs(w[1]) + abs(w[2]) # define abs(Weight)
