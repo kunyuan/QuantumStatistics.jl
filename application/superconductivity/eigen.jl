@@ -49,9 +49,9 @@ function KGrid(Order, Nk)
     println("Guassian quadrature points : ", x)
     println("Guassian quadrature weights: ", w)
 
-    println("KGrid Num: ", (length(panel)-1) * Order + 1)
+    println("KGrid Num: ", (length(panel)-1) * Order )
 
-    kgrid = zeros(Float64, (length(panel)-1) * Order + 1)
+    kgrid = zeros(Float64, (length(panel)-1) * Order )
     wkgrid = similar(kgrid)
 
     for pidx in 1:length(panel) - 1
@@ -63,7 +63,7 @@ function KGrid(Order, Nk)
             wkgrid[idx] = (b - a) / 2 * w[o]
         end
     end
-    kgrid[length(kgrid)]=maxK
+    #kgrid[length(kgrid)]=maxK
     return kgrid, wkgrid
 end
 
@@ -96,20 +96,20 @@ end
 function dH1(k, p, τ)
     g = e0^2
     gh = sqrt(g)
-    if abs(k - p) > 1.0e-7
+    if abs(k - p) > 1.0e-12
         return -2π * gh^3 * (log((abs(k - p) + gh)) -log( abs(k - p))) * (exp(-gh * τ) + exp(-gh * (β - τ))) / (1 - exp(-gh * β))
         #return -2π * gh^3 * (log((abs(k - p) + gh))) * (exp(-gh * τ) + exp(-gh * (β - τ))) / (1 - exp(-gh * β))
     else
-        return 0.01
+        return 0.0
 end
 end
 
 function bare(k, p)
-    if abs(k - p) > 1.0e-7
+    if abs(k - p) > 1.0e-12
         return 4π * e0^2 * (log(k + p) - log(abs(k - p)))
         #return 4π * e0^2 * log(k + p)         
     else
-        return 0.01
+        return 0.0
 end
 end
 
@@ -133,8 +133,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
     fdlr = DLR.DLRGrid(:fermi, 10EF, β, 1e-10) 
                 
     ########## non-uniform kgrid #############
-    kgrid, wkgrid = KGrid(16,18)
-    kgrid_double, wkgrid_double = KGrid(16,24)
+    kgrid, wkgrid = KGrid(64,10)
+    kgrid_double, wkgrid_double = KGrid(32,10)
     println(sum(wkgrid))
     ########## uniform K grid  ##############
     # MaxK = 5.0 * kF
@@ -146,6 +146,13 @@ if abspath(PROGRAM_FILE) == @__FILE__
     Δ = zeros(Float64, (fdlr.size, length(kgrid)))
     Δ0 = zeros(Float64, length(kgrid)) .+ 1.0
     F = calcF(Δ0, Δ, fdlr, kgrid)
+    filename = "./bare.dat"
+    open(filename, "w") do io
+        for r in 1:length(kgrid)
+            @printf(io, "%32.17g  %32.17g %32.17g %32.17g\n",kgrid[r] , bare(2.0, kgrid[r]) * F[1, r]*wkgrid[r], bare(2.0, kgrid[r])*wkgrid[r], F[1, r]*wkgrid[r])
+        end
+    end
+    
     println("sumF",sum(F),maximum(abs.(F)))
     Δ0, Δ = calcΔ(F, fdlr, kgrid, kgrid, wkgrid)
     Δ_freq = DLR.tau2matfreq(:fermi, Δ, fdlr, fdlr.n, axis=1)
@@ -156,8 +163,17 @@ if abspath(PROGRAM_FILE) == @__FILE__
     println(sum(F))
     Δ0_double, Δ_double = calcΔ(F, fdlr, kgrid, kgrid_double, wkgrid_double)
     #Δ_freq = DLR.tau2matfreq(:fermi, Δ, fdlr, fdlr.n, axis=1)
-    println(maximum(abs.(Δ0-Δ0_double)))
-
+    #maxvl, maxindex= findmax(reshape(abs.(Δ-Δ_double), fdlr.size*length(kgrid)))
+    #println(maxindex)
+    #index1 = maxindex ÷
+    maxindex=1
+    for r in 1:length(kgrid)
+        if kgrid[r]<2.0
+            global maxindex=r
+        end
+    end
+    println(abs.(Δ0-Δ0_double)[maxindex],",", kgrid[maxindex])
+    #println(abs.(Δ-Δ_double)[maxindex],",", kgrid[maxindex])
     filename = "./test.dat"
     println(fdlr.n,fdlr.n[fdlr.size÷2+1])
     open(filename, "w") do io
@@ -165,4 +181,10 @@ if abspath(PROGRAM_FILE) == @__FILE__
             @printf(io, "%32.17g  %32.17g  %32.17g\n",kgrid[r] ,Δ0[r] ,real(Δ_freq[fdlr.size÷2+1,r]))
         end
     end
+    # filename = "./.dat"    
+    # open(filename, "w") do io
+    #     for r in 1:length(kgrid)
+    #         @printf(io, "%32.17g  %32.17g  %32.17g\n",kgrid[r] ,Δ0[r] ,real(Δ_freq[fdlr.size÷2+1,r]))
+    #     end
+    # end
 end
