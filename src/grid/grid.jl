@@ -385,6 +385,18 @@ Create a logarithmic Grid for the imaginary time, which is densest near the 0 an
     return Log{type,size,2}([c1, c2], [r1, r2], [true, true])
 end
 
+"""
+    tauUL(β, minterval, M::Int, N::Int, type = Float64)
+
+Create a unilog Grid for the imaginary time, which is densest near the 0 and β
+the grid has 2 segments, 2*(M+1)*N+1 points.
+
+#Arguments:
+- `β`: inverse temperature
+- minterval: the minimal interval of the grid
+- M: (M+1) is the number of the 'log' grid of each segment of the grids, M>=0
+- N: each interval of the 'log' grid is further divided uniformly into N part, N>=1
+"""
 @inline function tauUL(β, minterval, M::Int,N::Int, type=Float64)
     seg = 2
     size = (M+1)*N*seg+1
@@ -416,6 +428,20 @@ Create a logarithmic fermionic K Grid, which is densest near the Fermi momentum 
     r2 = kFi + 1:size
     return Log{type,size,2}([c1, c2], [r1, r2], [true, false])
 end
+
+"""
+    fermiKUL(Kf, maxK, minterval, M, N,  type = Float64)
+
+Create a unilog fermionic K Grid, which is densest near the Fermi momentum `k_F`
+the grid has 2 segments, 2*(M+1)*N+1 points.
+
+#Arguments:
+- Kf: Fermi momentum
+- maxK: the upper bound of the grid
+- minterval: the minimal interval of the grid
+- M: (M+1) is the number of the 'log' grid of each segment of the grids, M>=0
+- N: each interval of the 'log' grid is further divided uniformly into N part, N>=1
+"""
 
 @inline function fermiKUL(Kf, maxK, minterval, M::Int,N::Int, type=Float64)
     seg = 2
@@ -467,6 +493,19 @@ Create a logarithmic bosonic K Grid, which is densest near the momentum `0` and 
 return K
 end
 
+"""
+    boseKUL(Kf, maxK, minterval, M, N,  type = Float64)
+
+Create a unilog bosonic K Grid, which is densest near the momentum `0` and `2k_F`
+the grid has 3 segments, 3*(M+1)*N+1 points.
+
+#Arguments:
+- Kf: Fermi momentum
+- maxK: the upper bound of the grid
+- minterval: the minimal interval of the grid
+- M: (M+1) is the number of the 'log' grid of each segment of the grids, M>=0
+- N: each interval of the 'log' grid is further divided uniformly into N part, N>=1
+"""
 @inline function boseKUL(
     Kf,
     maxK,
