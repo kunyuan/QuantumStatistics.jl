@@ -109,15 +109,19 @@ if abspath(PROGRAM_FILE) == @__FILE__
     fdlr = DLR.DLRGrid(:fermi, 10EF, β, 1e-10) 
                 
     ########## non-uniform kgrid #############
-    Nk = 16
+    Nk = 8 
     order = 8
+    maxK = 10.0 * kF
+    minK = 0.001 * kF
     
-    kpanel = KPanel(Nk)
+    kpanel = KPanel(Nk, kF, maxK, minK)
     kgrid = CompositeGrid(kpanel, order, :cheb)
-    qgrids = [CompositeGrid(QPanel(Nk, k), order, :gaussian) for k in kgrid.grid] # qgrid for each k in kgrid.grid
+    qgrids = [CompositeGrid(QPanel(Nk, kF, maxK, minK, k), order, :gaussian) for k in kgrid.grid] # qgrid for each k in kgrid.grid
+    println("kgrid number: $(length(kgrid.grid))")
+    println("qgrids: $(length(qgrids))")
     
     kgrid_double = CompositeGrid(kpanel, 2 * order, :cheb)
-    qgrids_double = [CompositeGrid(QPanel(Nk, k), 2 * order, :gaussian) for k in kgrid_double.grid] # qgrid for each k in kgrid.grid
+    qgrids_double = [CompositeGrid(QPanel(Nk, kF, maxK, minK, k), 2order, :gaussian) for k in kgrid_double.grid] # qgrid for each k in kgrid.grid
     
     Δ = zeros(Float64, (length(kgrid.grid), fdlr.size))
     Δ0 = zeros(Float64, length(kgrid.grid)) .+ 1.0

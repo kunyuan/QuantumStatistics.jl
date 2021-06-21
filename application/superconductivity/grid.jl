@@ -1,5 +1,6 @@
 using FastGaussQuadrature
 include("chebyshev.jl")
+include("pgrid.jl")
 
 idx(ki, xi, order) = (ki - 1) * order + xi
 
@@ -47,23 +48,18 @@ struct CompositeGrid
     end
 end
 
-function KPanel(Nk)
-    maxK = 10.0
-    minK = 0.001
-
+function KPanel(Nk, kF, maxK, minK)
     panel = Grid.boseKUL(0.5 * kF, maxK, minK, Nk, 1).grid
     panel[1] = 0.0  # the kgrid start with 0.0
-    println("K Panels Num: ", length(panel))
+    # println("K Panels Num: ", length(panel))
     return panel
 end
 
-function QPanel(Nk, k)
-    maxK = 10.0
-    minK = 0.001
+function QPanel(Nk, kF, maxK, minK, k)
+    # panel = pGrid(k, kF, maxK, minK, [Nk,Nk,Nk,Nk]).grid
 
     panel = Grid.boseKUL(0.5 * kF, maxK, minK, Nk, 1).grid
     panel[1] = 0.0  # the kgrid start with 0.0
-    # println("Q Panels Num: ", length(panel))
     return panel
 end
 
