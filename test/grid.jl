@@ -325,7 +325,7 @@ end
         kgrid2 = Grid.fermiKUL(kF, maxK, minterval, 2M, 2N)
         # tugrid = Grid.Uniform{Float64,33}(0.0, β, (true, true))
         # kugrid = Grid.Uniform{Float64,33}(0.0, maxK, (true, true))
-        f(k) = 1.0/(0.000001+(k^2-kF^2)^2)
+        f(k) = 1.0/(0.0004π^2+(k^2-kF^2)^2)
 
         d_max, std = Grid.testInterpolation1D(f, kgrid1, kgrid2, true)
         println("Testing interpolation for fermiKUL grid")
@@ -341,35 +341,40 @@ end
             kF::Float64
 
             function Para()
-                return new(100.0, 0.01, 0.000001, 3.0, 1.0)
+                return new(10.0, 0.001, 0.0001, 3.0, 1.0)
             end
         end
 
         para = Para()
-        MN = 128
+        MN = 64
 
         println("Testing optimization of tauUL")
-        f(t) = Spectral.kernelFermiT(t/para.β,1e-6*para.kF^2*para.β)
-        M, N = Grid.optimizeUniLog(Grid.tauUL, para, MN, f)
-        println(MN,"\t", M,"\t", N)
+        f(t) = Spectral.kernelFermiT(t/para.β,1e0*para.kF^2*para.β)
+        M, N, d_max = Grid.optimizeUniLog(Grid.tauUL, para, MN, f)
+        println(MN,"\t", M,"\t", N,"\t", d_max)
 
         tgrid1 = Grid.tauUL(para, M, N)
         tgrid2 = Grid.tauUL(para, 2M, 2N)
         d_max, std = Grid.testInterpolation1D(f, tgrid1, tgrid2, true)
+        println("Testing interpolation for tauUL grid")
         println("d_max=",d_max,"\t std=", std)
 
 
-        MN = 128
+        MN = 64
         println("Testing optimization of fermiKUL")
         f2(k) = 1.0/((2π/para.β)^2+(k^2-para.kF^2)^2)
-        M, N = Grid.optimizeUniLog(Grid.fermiKUL, para, MN, f2)
-        println(MN,"\t", M,"\t", N)
+        M, N, d_max= Grid.optimizeUniLog(Grid.fermiKUL, para, MN, f2)
+        println(MN,"\t", M,"\t", N,"\t", d_max)
 
         kgrid1 = Grid.fermiKUL(para, M, N)
         kgrid2 = Grid.fermiKUL(para, 2M, 2N)
-        d_max, std = Grid.testInterpolation1D(f2, kgrid1, kgrid2, true)
+        d_max, std, index = Grid.testInterpolation1D(f2, kgrid1, kgrid2, true, true)
         println("Testing interpolation for fermiKUL grid")
         println("d_max=",d_max,"\t std=", std)
+        # println("index=", index, "\t x=", kgrid2[index])
+        # index1=(floor(kgrid1, kgrid2[index]))
+        # println(kgrid1[index1],"\t",kgrid1[index1+1])
+        # println(kgrid1.grid)
 
     end
 
