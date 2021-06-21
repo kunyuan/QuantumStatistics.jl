@@ -1,7 +1,7 @@
 using StaticArrays:similar, maximum
 using QuantumStatistics
 using Printf
-using Plots
+# using Plots
 include("parameter.jl")
 include("grid.jl")
 
@@ -53,86 +53,6 @@ end
 
 
 """
-interpolate F from a one-dimensional array of k grid to a two-diemnsional array of k and q grids
-
-# Arguments
-- F : one-dimensional array in k grid
-- fdlr : dlrGrid object
-- kgrid : CompositeGrid for k
-- qgrids : vector of CompositeGrid, each element is a q grid for a given k grid
-"""
-function interpolateF(F, fdlr, kgrid, qgrids)
-    @assert size(F)[2] == fdlr.size # check the τ dimension
-    @assert length(qgrids) == kgrid.Np * kgrid.order
-
-    FF = zeros(Float64, (qgrids[1].Np * qgrids[1].order, kgrid.Np * kgrid.order, fdlr.size))
-
-    for τi in 1:fdlr.size
-        for (ki, k) in enumerate(kgrid.grid)
-            kpidx = 1 # panel index of the kgrid
-            fx = F[idx(kpidx, 1, kgrid.order):idx(kpidx, kgrid.order, kgrid.order), τi] # all F in the same kpidx-th K panel
-            x = kgrid.grid[idx(kpidx, 1, kgrid.order):idx(kpidx, kgrid.order, kgrid.order)]
-            w = kgrid.wgrid[idx(kpidx, 1, kgrid.order):idx(kpidx, kgrid.order, kgrid.order)]
-            for (qi, q) in enumerate(qgrids[ki].grid)
-                # for a given q, one needs to find the k panel to do interpolation
-                if q > kgrid.panel[kpidx + 1]
-                    # if q is too large, move k panel to the next
-                    kpidx += 1
-                    fx = F[idx(kpidx, 1, kgrid.order):idx(kpidx, kgrid.order, kgrid.order), τi] # all F in the same kpidx-th K panel
-                    x = kgrid.grid[idx(kpidx, 1, kgrid.order):idx(kpidx, kgrid.order, kgrid.order)]
-                    w = kgrid.wgrid[idx(kpidx, 1, kgrid.order):idx(kpidx, kgrid.order, kgrid.order)]
-                    @assert kpidx <= kgrid.Np
-                end
-                # extract all x in the kpidx-th k panel
-                FF[qi, ki, τi] = barycheb(kgrid.order, q, fx, w, x) # the interpolation is independent with the panel length
-
-            end
-        end
-    end
-
-    return FF
-end
-
-# function interpolateF2(F, fdlr, kgrid, qgrids)
-#     @assert size(F)[2] == fdlr.size # check the τ dimension
-#     @assert length(qgrids) == kgrid.Np * kgrid.order
-
-#     FF = zeros(Float64, (qgrids[1].Np * qgrids[1].order, kgrid.Np * kgrid.order, fdlr.size))
-
-#     for (ki, k) in enumerate(kgrid.grid)
-#         kpidx = 1 # panel index of the kgrid
-#         fx = F[idx(kpidx, 1, kgrid.order):idx(kpidx, kgrid.order, kgrid.order), :] # all F in the same kpidx-th K panel
-#         x = kgrid.grid[idx(kpidx, 1, kgrid.order):idx(kpidx, kgrid.order, kgrid.order)]
-#         w = kgrid.wgrid[idx(kpidx, 1, kgrid.order):idx(kpidx, kgrid.order, kgrid.order)]
-#         # println("kfx: $kpidx: $(kgrid.x)")
-#         # println("kfx: $kpidx: $fx")
-#         for (qi, q) in enumerate(qgrids[ki].grid)
-#             # for a given q, one needs to find the k panel to do interpolation
-#             if q > kgrid.panel[kpidx + 1]
-#                 # if q is too large, move k panel to the next
-#                 kpidx += 1
-#                 fx = F[idx(kpidx, 1, kgrid.order):idx(kpidx, kgrid.order, kgrid.order), :] # all F in the same kpidx-th K panel
-#                 x = kgrid.grid[idx(kpidx, 1, kgrid.order):idx(kpidx, kgrid.order, kgrid.order)]
-#                 w = kgrid.wgrid[idx(kpidx, 1, kgrid.order):idx(kpidx, kgrid.order, kgrid.order)]
-#                 # println("$kpidx: $fx")
-#                 @assert kpidx <= kgrid.Np
-#             end
-#             # extract all x in the kpidx-th k panel
-#             FF[qi, ki, :] .= barycheb2(kgrid.order, q, fx, w, x) # the interpolation is independent with the panel length
-
-#             # if qi < 10
-#             #     println(FF[qi, ki, τi], " at ", q)
-#             # else
-#             #     exit(0)
-#             # end
-#         end
-#         # FF[:, ki, τi] = interpolate(F[:, τi], kgrid, qgrids[ki].grid)
-#     end
-
-#     return FF
-# end
-
-"""
 Calculate Δ function in k grid
 
 # Arguments
@@ -144,31 +64,45 @@ Calculate Δ function in k grid
 function calcΔ(F, fdlr, kgrid, qgrids)
     
     @time begin
-        FF = interpolateF(F, fdlr, kgrid, qgrids)
-    end
     
-    # p = plot(kgrid.grid, F[:, 10])
-    # p = plot!(p, kgrid.grid, FF[:, 1, 10])
-    # display(p)
-    # readline()
-    
-    Δ0 = zeros(Float64, kgrid.Np * kgrid.order)
-    Δ = zeros(Float64, (kgrid.Np * kgrid.order, fdlr.size))
-    
-    for (τi, τ) in enumerate(fdlr.τ)
-        for (ki, k) in enumerate(kgrid.grid)
-            qgrid = qgrids[ki]
-            for (qi, q) in enumerate(qgrid.grid)
-                wqgrid = qgrid.wgrid
-                Δ[ki, τi] += dH1(k, q, τ) * FF[qi, ki, τi] * wqgrid[qi]
+        Δ0 = zeros(Float64, kgrid.Np * kgrid.order)
+        Δ = zeros(Float64, (kgrid.Np * kgrid.order, fdlr.size))
+        order = kgrid.order
+        
+        for (τi, τ) in enumerate(fdlr.τ)
+            for (ki, k) in enumerate(kgrid.grid)
 
-                if τi == 1 
-                    Δ0[ki] += bare(k, q) * FF[qi, ki, 1] * wqgrid[qi]
+                kpidx = 1 # panel index of the kgrid
+                fx = F[idx(kpidx, 1, order):idx(kpidx, order, order), τi] # all F in the same kpidx-th K panel
+                x = kgrid.grid[idx(kpidx, 1, order):idx(kpidx, order, order)]
+                w = kgrid.wgrid[idx(kpidx, 1, order):idx(kpidx, order, order)]
+
+                for (qi, q) in enumerate(qgrids[ki].grid)
+
+                    if q > kgrid.panel[kpidx + 1]
+                        # if q is too large, move k panel to the next
+                        kpidx += 1
+                        fx = F[idx(kpidx, 1, order):idx(kpidx, order, order), τi] # all F in the same kpidx-th K panel
+                        x = kgrid.grid[idx(kpidx, 1, order):idx(kpidx, order, order)]
+                        w = kgrid.wgrid[idx(kpidx, 1, order):idx(kpidx, order, order)]
+                        @assert kpidx <= kgrid.Np
+                    end
+
+                    FF = barycheb(kgrid.order, q, fx, w, x) # the interpolation is independent with the panel length
+
+                    wq = qgrids[ki].wgrid[qi]
+                    Δ[ki, τi] += dH1(k, q, τ) * FF * wq
+
+                    if τi == 1 
+                        Δ0[ki] += bare(k, q) * FF * wq
+                    end
+
                 end
-
             end
         end
+    
     end
+
     return Δ0, Δ 
 end
 
@@ -179,21 +113,22 @@ if abspath(PROGRAM_FILE) == @__FILE__
     ########## non-uniform kgrid #############
     # kgrid, wkgrid = KGrid(64, 10)
     # kgrid_double, wkgrid_double = KGrid(32, 10)
-    Nk = 8
-    order = 16
+    Nk = 16
+    order = 8
     kpanel = KPanel(Nk)
     kgrid = CompositeGrid(kpanel, order, :cheb)
     # qgrids = [CompositeGrid(QPanel(Nk, k), order, :cheb) for k in kgrid.grid] # qgrid for each k in kgrid.grid
     qgrids = [CompositeGrid(QPanel(Nk, k), order, :gaussian) for k in kgrid.grid] # qgrid for each k in kgrid.grid
     
-    # kgrid_double = CompositeGrid(kpanel, 2 * order, :cheb)
     kgrid_double = CompositeGrid(kpanel, 2 * order, :cheb)
+    # kgrid_double = CompositeGrid(kpanel, order, :cheb)
     # qgrids_double = [CompositeGrid(QPanel(Nk, k), 2 * order, :cheb) for k in kgrid_double.grid] # qgrid for each k in kgrid.grid
     qgrids_double = [CompositeGrid(QPanel(Nk, k), 2 * order, :gaussian) for k in kgrid_double.grid] # qgrid for each k in kgrid.grid
     
     Δ = zeros(Float64, (length(kgrid.grid), fdlr.size))
     Δ0 = zeros(Float64, length(kgrid.grid)) .+ 1.0
     F = calcF(Δ0, Δ, fdlr, kgrid)
+    # println(size(F))
     # filename = "./bare.dat"
     # open(filename, "w") do io
     #     for r in 1:length(kgrid)
@@ -207,12 +142,25 @@ if abspath(PROGRAM_FILE) == @__FILE__
     
     Δ_2 = zeros(Float64, (length(kgrid_double.grid), fdlr.size))
     Δ0_2 = zeros(Float64, length(kgrid_double.grid)) .+ 1.0
-    F = calcF(Δ0_2, Δ_2, fdlr, kgrid_double)
-    println(sum(F))
-    Δ0_double, Δ_double = calcΔ(F, fdlr, kgrid_double, qgrids_double)
+    F_2 = calcF(Δ0_2, Δ_2, fdlr, kgrid_double)
+    # println(sum(F_2))
+
+    F_fine = similar(F)
+    for τi in 1:fdlr.size
+        F_fine[:, τi] = interpolate(F_2[:, τi], kgrid_double, kgrid.grid)
+    end
+    # p = plot(kgrid.grid, F[:, 10])
+    # p = plot!(p, kgrid_double.grid, F_2[:, 10])
+    # p = plot!(p, kgrid.grid, F_fine[:, 10])
+    # display(p)
+    # readline()
+
+    println("Max Err for F interpolation: ", maximum(abs.(F - F_fine)))
+
+    Δ0_double, Δ_double = calcΔ(F_2, fdlr, kgrid_double, qgrids_double)
     
     Δ0_fine = interpolate(Δ0_double, kgrid_double, kgrid.grid)
-    println("Max Err: ", maximum(abs.(Δ0 - Δ0_fine)))
+    println("Max Err for Δ0: ", maximum(abs.(Δ0 - Δ0_fine)))
     # println("Max Err: ", maximum(abs.(Δ0 - Δ0_double)))
     # Δ_freq = DLR.tau2matfreq(:fermi, Δ, fdlr, fdlr.n, axis=1)
     # maxvl, maxindex= findmax(reshape(abs.(Δ-Δ_double), fdlr.size*length(kgrid)))

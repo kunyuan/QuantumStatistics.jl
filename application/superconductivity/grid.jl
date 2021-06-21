@@ -79,23 +79,27 @@ map f array in the grid k to a new grid
 """
 function interpolate(f, k::CompositeGrid, grid)
     @assert k.type == :cheb
+    order = k.order
     ff = zeros(eltype(f), length(grid))
     kpidx = 1 # panel index of the kgrid
     # extract all x in the kpidx-th k panel
-    fx = f[idx(kpidx, 1, kgrid.order):idx(kpidx, kgrid.order, kgrid.order)] # all F in the same kpidx-th K panel
-    x = kgrid.grid[idx(kpidx, 1, kgrid.order):idx(kpidx, kgrid.order, kgrid.order)]
-    w = kgrid.wgrid[idx(kpidx, 1, kgrid.order):idx(kpidx, kgrid.order, kgrid.order)]
+    fx = f[idx(kpidx, 1, order):idx(kpidx, k.order, order)] # all F in the same kpidx-th K panel
+    x = k.grid[idx(kpidx, 1, order):idx(kpidx, order, order)]
+    w = k.wgrid[idx(kpidx, 1, order):idx(kpidx, order, order)]
     for (qi, q) in enumerate(grid)
         # for a given q, one needs to find the k panel to do interpolation
-        if q > kgrid.panel[kpidx + 1]
+        if q > k.panel[kpidx + 1]
             # if q is too large, move k panel to the next
             kpidx += 1
-            fx = f[idx(kpidx, 1, kgrid.order):idx(kpidx, kgrid.order, kgrid.order)] # all F in the same kpidx-th K panel
-            x = kgrid.grid[idx(kpidx, 1, kgrid.order):idx(kpidx, kgrid.order, kgrid.order)]
-            w = kgrid.wgrid[idx(kpidx, 1, kgrid.order):idx(kpidx, kgrid.order, kgrid.order)]
-            @assert kpidx <= kgrid.Np
+            fx = f[idx(kpidx, 1, order):idx(kpidx, order, order)] # all F in the same kpidx-th K panel
+            x = k.grid[idx(kpidx, 1, order):idx(kpidx, order, order)]
+            w = k.wgrid[idx(kpidx, 1, order):idx(kpidx, order, order)]
+            @assert kpidx <= k.Np
         end
-        ff[qi] = barycheb(kgrid.order, q, fx, w, x) # the interpolation is independent with the panel length
+        ff[qi] = barycheb(order, q, fx, w, x) # the interpolation is independent with the panel length
+        @assert x[1] <= q <= x[end]
+        # @assert abs(ff[qi] - fx[1]) <= abs(fx[end] - fx[1]) "failed $q : $(ff[qi])\n $x \n $fx"
+        # println("$q -> $(ff[qi]): between $(x[1]) - $(x[end])")
     end
     return ff
 end
