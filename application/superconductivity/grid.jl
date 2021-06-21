@@ -88,9 +88,11 @@ function interpolate(f, k::CompositeGrid, grid)
         # for a given q, one needs to find the k panel to do interpolation
         if q > k.panel[kpidx + 1]
             # if q is too large, move k panel to the next
+            # println("before $q, $kpidx, $(k.panel[kpidx]) -> $(k.panel[kpidx + 1])")
             while q > kgrid.panel[kpidx + 1]
                 kpidx += 1
             end
+            # println("after $q, $kpidx, $(k.panel[kpidx]) -> $(k.panel[kpidx + 1])")
             head, tail = idx(kpidx, 1, order), idx(kpidx, order, order) 
             fx = @view f[head:tail] # all F in the same kpidx-th K panel
             x = @view k.grid[head:tail]
@@ -98,7 +100,7 @@ function interpolate(f, k::CompositeGrid, grid)
             @assert kpidx <= k.Np
         end
         ff[qi] = barycheb(order, q, fx, w, x) # the interpolation is independent with the panel length
-        @assert x[1] <= q <= x[end]
+        # @assert k.panel[kpidx - 1][order] <= q <= k.panel[pidx + 1][1] "$q for kpidx=$kpidx with $x"
     end
     return ff
 end

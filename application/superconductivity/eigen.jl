@@ -109,6 +109,36 @@ function calcΔ(F, fdlr, kgrid, qgrids)
     return Δ0, Δ 
 end
 
+# function testGrid(kgrid, qgrids, qgrids2, F)
+    
+#     # plotlyjs() # allow interactive plot
+#     # pyplot() # allow interactive plot
+#     F = F[:, 10]
+#     ki = findall(x -> abs(x - kF * 1.2) < 1.0e-2, kgrid.grid)
+#     println("ki: $ki")
+#     ki = ki[1]
+#     qgrid = qgrids[ki]
+#     qgrid2 = qgrids2[ki]
+    
+#     integrand = zeros(Float64, length(qgrid.grid))
+#     for (qi, q) in enumerate(qgrid.grid)
+#         FF = interpolate(F, kgrid, qgrid.grid)
+#         integrand[qi] = bare(kgrid.grid[ki], q) * FF[qi]
+#     end
+    
+#     integrand2 = zeros(Float64, length(qgrid2.grid))
+#     for (qi, q) in enumerate(qgrid2.grid)
+#         FF = interpolate(F, kgrid, qgrid2.grid)
+#         integrand2[qi] = bare(kgrid.grid[ki], q) * FF[qi]
+#     end
+    
+#     p = plot(qgrid.grid ./ kF, integrand)
+#     p = plot!(p, qgrid2.grid ./ kF, integrand2)
+#     xlims!((1.1, 1.4))
+#     display(p)
+#     readline()
+# end
+
 if abspath(PROGRAM_FILE) == @__FILE__
     
     fdlr = DLR.DLRGrid(:fermi, 10EF, β, 1e-10) 
@@ -125,13 +155,16 @@ if abspath(PROGRAM_FILE) == @__FILE__
     println("kgrid number: $(length(kgrid.grid))")
     println("max qgrid number: ", maximum([length(q.grid) for q in qgrids]))
     
+    qgrid2s = [CompositeGrid(QPanel(Nk, kF, maxK, minK, k), 2order, :gaussian) for k in kgrid.grid] # qgrid for each k in kgrid.grid
+    
     kgrid_double = CompositeGrid(kpanel, 2 * order, :cheb)
     qgrids_double = [CompositeGrid(QPanel(Nk, kF, maxK, minK, k), 2order, :gaussian) for k in kgrid_double.grid] # qgrid for each k in kgrid.grid
     
     Δ = zeros(Float64, (length(kgrid.grid), fdlr.size))
     Δ0 = zeros(Float64, length(kgrid.grid)) .+ 1.0
     F = calcF(Δ0, Δ, fdlr, kgrid)
-
+    
+    # testGrid(kgrid, qgrids, qgrid2s, F)
     # println(size(F))
     # filename = "./bare.dat"
     # open(filename, "w") do io
