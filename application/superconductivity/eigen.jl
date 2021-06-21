@@ -67,6 +67,64 @@ function KGrid(Order, Nk)
     return kgrid, wkgrid
 end
 
+
+function KGrid_bose(Order, Nk)
+    maxK = 10.0
+    minK = 0.001
+    #Nk = 10
+    #Order = 8 # Legendre polynomial order
+    panel = Grid.boseKUL(0.5 * kF, maxK, minK, Nk, 1).grid
+    panel[1] = 0.0  # the kgrid start with 0.0
+    println("Panels Num: ", length(panel))
+
+    # n: polynomial order
+    x, w = gausslegendre(Order)
+    println("Guassian quadrature points : ", x)
+    println("Guassian quadrature weights: ", w)
+
+    println("KGrid Num: ", (length(panel)-1) * Order )
+
+    kgrid = zeros(Float64, (length(panel)-1) * Order )
+    wkgrid = similar(kgrid)
+
+    for pidx in 1:length(panel) - 1
+        a, b = panel[pidx], panel[pidx + 1]
+        for o in 1:Order
+            idx = (pidx - 1) * Order + o
+            kgrid[idx] = (a + b) / 2 + (b - a) / 2 * x[o]
+            @assert kgrid[idx] > a && kgrid[idx] < b
+            wkgrid[idx] = (b - a) / 2 * w[o]
+        end
+    end
+    #kgrid[length(kgrid)]=maxK
+    return kgrid, wkgrid
+end
+
+
+function build_int(k, q, kbose_grid)
+    result=FLoat64[]
+    push!(result, abs(k-q))
+    for (pi, p) in enumerate(kbose_grid)
+        if(p>abs(k-q)&&p<k+q)
+            push!(result, p)
+        end
+    end
+    push!(result, k+q)
+    return result
+end
+
+function legendre_dc(kernal_bose, fdlr, kgrid ,qgrid, kbose_grid)
+    kernal = zeros(FLoat64, (fdlr.size, length(kgrid), length(kgrid)))
+    for (ki, k) in enumerate(kgrid)
+        for (qi, q) in enumerate(qgrid[ki])
+            mom_int, w_mom_int=build_int(k, q, kbose_grid)
+            
+        end
+    end
+end
+
+
+
 """
 calcF(Δ, kgrid, fdlr)
 
