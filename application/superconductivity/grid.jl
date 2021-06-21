@@ -51,15 +51,15 @@ end
 function KPanel(Nk, kF, maxK, minK)
     panel = Grid.boseKUL(0.5 * kF, maxK, minK, Nk, 1).grid
     panel[1] = 0.0  # the kgrid start with 0.0
-    # println("K Panels Num: ", length(panel))
     return panel
 end
 
 function QPanel(Nk, kF, maxK, minK, k)
-    # panel = pGrid(k, kF, maxK, minK, [Nk,Nk,Nk,Nk]).grid
+    panel = pGrid(k, kF, maxK, minK, [Nk,Nk,Nk,Nk]).grid
 
-    panel = Grid.boseKUL(0.5 * kF, maxK, minK, Nk, 1).grid
-    panel[1] = 0.0  # the kgrid start with 0.0
+    # panel = Grid.boseKUL(0.5 * kF, maxK, minK, Nk, 1).grid
+    # panel[1] = 0.0  # the kgrid start with 0.0
+
     return panel
 end
 
@@ -88,7 +88,9 @@ function interpolate(f, k::CompositeGrid, grid)
         # for a given q, one needs to find the k panel to do interpolation
         if q > k.panel[kpidx + 1]
             # if q is too large, move k panel to the next
-            kpidx += 1
+            while q > kgrid.panel[kpidx + 1]
+                kpidx += 1
+            end
             head, tail = idx(kpidx, 1, order), idx(kpidx, order, order) 
             fx = @view f[head:tail] # all F in the same kpidx-th K panel
             x = @view k.grid[head:tail]

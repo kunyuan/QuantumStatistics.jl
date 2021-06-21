@@ -78,7 +78,9 @@ function calcΔ(F, fdlr, kgrid, qgrids)
 
             if q > kgrid.panel[kpidx + 1]
                 # if q is larger than the end of the current panel, move k panel to the next panel
-                kpidx += 1
+                while q > kgrid.panel[kpidx + 1]
+                    kpidx += 1
+                end
                 head, tail = idx(kpidx, 1, order), idx(kpidx, order, order) 
                 x = @view kgrid.grid[head:tail]
                 w = @view kgrid.wgrid[head:tail]
@@ -93,8 +95,11 @@ function calcΔ(F, fdlr, kgrid, qgrids)
                 wq = qgrids[ki].wgrid[qi]
                 Δ[ki, τi] += dH1(k, q, τ) * FF * wq
 
+                @assert isfinite(Δ[ki, τi]) "fail Δ at $ki, $τi with $(Δ[ki, τi]), $FF\n $q for $fx\n $x \n $w\n $q < $(kgrid.panel[kpidx + 1])"
+
                 if τi == 1 
                     Δ0[ki] += bare(k, q) * FF * wq
+                    @assert isfinite(Δ0[ki]) "fail Δ0 at $ki with $(Δ0[ki])"
                 end
 
             end
@@ -109,7 +114,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     fdlr = DLR.DLRGrid(:fermi, 10EF, β, 1e-10) 
                 
     ########## non-uniform kgrid #############
-    Nk = 8 
+    Nk = 16
     order = 8
     maxK = 10.0 * kF
     minK = 0.001 * kF
@@ -118,7 +123,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     kgrid = CompositeGrid(kpanel, order, :cheb)
     qgrids = [CompositeGrid(QPanel(Nk, kF, maxK, minK, k), order, :gaussian) for k in kgrid.grid] # qgrid for each k in kgrid.grid
     println("kgrid number: $(length(kgrid.grid))")
-    println("qgrids: $(length(qgrids))")
+    println("max qgrid number: ", maximum([length(q.grid) for q in qgrids]))
     
     kgrid_double = CompositeGrid(kpanel, 2 * order, :cheb)
     qgrids_double = [CompositeGrid(QPanel(Nk, kF, maxK, minK, k), 2order, :gaussian) for k in kgrid_double.grid] # qgrid for each k in kgrid.grid
