@@ -202,10 +202,10 @@ if abspath(PROGRAM_FILE) == @__FILE__
     fdlr = DLR.DLRGrid(:fermi, 10EF, β, 1e-10) 
                 
     ########## non-uniform kgrid #############
-    Nk = 16
-    order = 8
+    Nk = 32
+    order = 16
     maxK = 10.0 * kF
-    minK = 0.001 * kF
+    minK = 0.00001 * kF
     
     kpanel = KPanel(Nk, kF, maxK, minK)
     kgrid = CompositeGrid(kpanel, order, :cheb)
