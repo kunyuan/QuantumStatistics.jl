@@ -1,6 +1,7 @@
 using StaticArrays:similar, maximum
 using QuantumStatistics
 using Printf
+# using Gaston
 # using Plots
 include("parameter.jl")
 include("grid.jl")
@@ -167,35 +168,35 @@ function calcΔ(F, fdlr, kgrid, qgrids)
     return Δ0, Δ 
 end
 
-# function testGrid(kgrid, qgrids, qgrids2, F)
+function testGrid(kgrid, qgrids, qgrids2, F)
     
-#     # plotlyjs() # allow interactive plot
-#     # pyplot() # allow interactive plot
-#     F = F[:, 10]
-#     ki = findall(x -> abs(x - kF * 1.2) < 1.0e-2, kgrid.grid)
-#     println("ki: $ki")
-#     ki = ki[1]
-#     qgrid = qgrids[ki]
-#     qgrid2 = qgrids2[ki]
+    # plotlyjs() # allow interactive plot
+    # pyplot() # allow interactive plot
+    F = F[:, 10]
+    ki = findall(x -> abs(x - kF * 1.2) < 1.0e-2, kgrid.grid)
+    println("ki: $ki")
+    ki = ki[1]
+    qgrid = qgrids[ki]
+    qgrid2 = qgrids2[ki]
     
-#     integrand = zeros(Float64, length(qgrid.grid))
-#     for (qi, q) in enumerate(qgrid.grid)
-#         FF = interpolate(F, kgrid, qgrid.grid)
-#         integrand[qi] = bare(kgrid.grid[ki], q) * FF[qi]
-#     end
+    integrand = zeros(Float64, length(qgrid.grid))
+    for (qi, q) in enumerate(qgrid.grid)
+        FF = interpolate(F, kgrid, qgrid.grid)
+        integrand[qi] = bare(kgrid.grid[ki], q) * FF[qi]
+    end
     
-#     integrand2 = zeros(Float64, length(qgrid2.grid))
-#     for (qi, q) in enumerate(qgrid2.grid)
-#         FF = interpolate(F, kgrid, qgrid2.grid)
-#         integrand2[qi] = bare(kgrid.grid[ki], q) * FF[qi]
-#     end
+    integrand2 = zeros(Float64, length(qgrid2.grid))
+    for (qi, q) in enumerate(qgrid2.grid)
+        FF = interpolate(F, kgrid, qgrid2.grid)
+        integrand2[qi] = bare(kgrid.grid[ki], q) * FF[qi]
+    end
     
-#     p = plot(qgrid.grid ./ kF, integrand)
-#     p = plot!(p, qgrid2.grid ./ kF, integrand2)
-#     xlims!((1.1, 1.4))
-#     display(p)
-#     readline()
-# end
+    p = plot(qgrid.grid ./ kF, integrand, curveconf="w p", Axes(xrange=(1.1, 1.4)))
+    plot!(qgrid2.grid ./ kF, integrand2, curveconf="w p")
+    # xlims!((1.1, 1.4))
+    display(p)
+    readline()
+end
 
 if abspath(PROGRAM_FILE) == @__FILE__
     
