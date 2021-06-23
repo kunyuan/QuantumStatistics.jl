@@ -54,6 +54,8 @@ test/test_results
 
 *.dat
 *.txt
+*.out
+*.err
 docs/build/
 __pycache__
 *.pyc

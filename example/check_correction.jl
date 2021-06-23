@@ -4,7 +4,7 @@
 using QuantumStatistics, LinearAlgebra, Random, Printf, BenchmarkTools, InteractiveUtils, Parameters, Dierckx
 # using ProfileView
 using PyCall
-const Steps = 1e7
+const Steps = 1e8
 
 include("parameter.jl")
 include("../application/electron_gas/RPA.jl")
@@ -26,14 +26,15 @@ end
 println("legendre(0.5)=",legendre(0.5))
 
 dlr = DLR.DLRGrid(:fermi, 10*EF,β, 1e-2)
-#const kgrid = Grid.fermiKUL(kF, 9kF, 0.001kF, 1,1) 
-const kgrid = Grid.Uniform{Float64, 2}(kF, 1.001kF,[false, false])
+const kgrid = Grid.fermiKUL(kF, 9kF, 0.001kF, 1,1) 
+#const kgrid = Grid.Uniform{Float64, 2}(kF, 1.001kF,[false, false])
 
 #
 # G(w,k)G(-w,-k)
 #
 
-dataFileName = "../../data_from_t/s/sigma_32.dat"
+#dataFileName = "/home/xc82a/data_from_t/s_largeT/sigma_0.dat"
+dataFileName = "/home/xc82a/data_from_t/s/sigma_96.dat"
 
 f = open(dataFileName, "r")
 
@@ -48,8 +49,8 @@ data2 = map(x->parse(Float64,x),split(readline(f)," ")[1:end-1])
 # sigmaI_spl = Spline2D(MomBin,FreqBin,data2)
 
 data1,data2 = reshape(data1,(length(FreqBin),length(MomBin))),reshape(data2,(length(FreqBin),length(MomBin)))
-sigmaR_spl = Spline2D(FreqBin,MomBin,data1)
-sigmaI_spl = Spline2D(FreqBin,MomBin,data2)
+sigmaR_spl = Spline2D(FreqBin,MomBin,data1;kx=1,ky=1,s=0.0)
+sigmaI_spl = Spline2D(FreqBin,MomBin,data2;kx=1,ky=1,s=0.0)
 
 println("ΣR=",sigmaR_spl(0.0, 1.0),"\tΣI=",sigmaI_spl(0.0, 1.0))
 #println("ΣR=",sigmaR_spl(1.0, 0.0),"\tΣI=",sigmaI_spl(1.0, 0.0))
@@ -73,7 +74,8 @@ end
 # gap-function
 #
 
-dataFileName = "../../data_from_t/s/delta_32.dat"
+#dataFileName = "/home/xc82a/data_from_t/s_largeT/delta_0.dat"
+dataFileName = "/home/xc82a/data_from_t/s/delta_96.dat"
 
 f = open(dataFileName, "r")
 
@@ -83,16 +85,22 @@ data = map(x->parse(Float64,x),split(readline(f)," ")[1:end-1])
 
 data = reshape(data,(length(MomBin),length(FreqBin)))
 
-delta_spl = Spline2D(MomBin,FreqBin,data)
+delta_spl = Spline2D(MomBin,FreqBin,data;kx=1,ky=1,s=0.0)
 
-#const lamu = 0.2229769140136642
+const lamu = 0.2229769140136642 #beta250, rs4
+#const lamu = 0.002398499678459926 #beta25, rs2
+#const lamu = 0.02231536377399141 #beta250,rs2
 
-const lamu = 0.022316536295345996
+const freq_cut = 0.25
+const actual_cut_index = findmin([(freq-freq_cut<0 ? FreqBin[end] : freq ) for freq in FreqBin ])[2]-1
+
 function Δ(ω, k, isNormed = false)
     if ω<0
         ω=-ω
     end
-    if ω/kF^2<0.25 && isNormed
+    cut = freq_cut
+#   cut = FreqBin[actual_cut_index]
+    if ω/kF^2<=cut && isNormed
         return delta_spl(k/kF,ω/kF^2)*lamu
     else
         return delta_spl(k/kF,ω/kF^2)
@@ -102,16 +110,17 @@ end
 
 println(delta_spl(0.999, 0.001))
 
-#ExtFreqBin = FreqBin[1:40]*kF^2
-ExtFreqBin = [π*(2*dlr.n[i]+1)/β for i in 1:length(dlr.n)][16:17]
+ExtFreqBin = FreqBin[1:9]*kF^2
+#half = Base.floor(Int, length(dlr.n)/2)
+#ExtFreqBin = [π*(2*dlr.n[i]+1)/β for i in 1:length(dlr.n)][half+1:end]
 #ExtFreqBin = [π*(2*dlr.n[i]+1)/β for i in 1:length(dlr.n)]
 
 #
 # interaction
 #
 
-const qgrid = Grid.boseKUL(kF, 10kF, 0.000001*sqrt(me^2/β/kF^2), 15,4) 
-const τgrid = Grid.tauUL(β, 0.0001, 11,4)
+const qgrid = Grid.boseKUL(kF, 10kF, 0.00001*sqrt(me^2/β/kF^2), 12,8) 
+const τgrid = Grid.tauUL(β, 0.0001, 11,8)
 const vqinv = [(q^2 + mass2) / (4π * e0^2) for q in qgrid.grid]
 # println(qgrid.grid)
 # println(τgrid.grid)
@@ -200,16 +209,16 @@ function integrand(config)
 
         factor = -1.0/(2π)^3/(2π)^2/β * legendre(cos(θ))*sin(θ)/2.0 * GG(ωin, K2[1],β) * Δ(ωin,K2[1]) * kgrid[Ext2[1]]*K2[1]
 
-        r_r = W1[2]*W2[2]*g1*g2* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (t2-t3))
-        s_r = W1[1]*W2[2]*g1*g4* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (-t3))
-        r_s = W1[2]*W2[1]*g2*g3* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (t2-t1))
-        s_s = W1[1]*W2[1]*g3*g4* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (-t1))
+        r_r = W1[2]*W2[2]*g1*g2* factor*exp(im*ωout * t1 ) * 2.0*cos(ωin * (t2-t3))
+        s_r = W1[1]*W2[2]*g1*g4* factor*exp(im*ωout * t1 ) * 2.0*cos(ωin * (-t3))
+        r_s = W1[2]*W2[1]*g2*g3* factor*exp(im*ωout * t1 ) * 2.0*cos(ωin * (t2-t1))
+        s_s = W1[1]*W2[1]*g3*g4* factor*exp(im*ωout * t1 ) * 2.0*cos(ωin * (-t1))
 
         result += (s_s+s_r+r_s+r_r)
 
-        ω1 = (dot(q-k1, q-k1) - kF^2) * β
+        # ω1 = (dot(q-k1, q-k1) - kF^2) * β
 
-        ω2 = (dot(q-k2, q-k2) - kF^2) * β
+        # ω2 = (dot(q-k2, q-k2) - kF^2) * β
 
         τ1 = (-t3)/β
         g1 = Spectral.kernelFermiT(τ1, ω1)
@@ -232,12 +241,12 @@ function integrand(config)
         W1 = interaction(q, 0.0, t2)
         W2 = interaction(k1-k2, (t1),(t3) )
 
-        r_r = W1[2]*W2[2]*g1*g2* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (t2-t1)/β)
-        s_r = W1[1]*W2[2]*g1*g4* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (-t1)/β)
-        r_s = W1[2]*W2[1]*g3*g6* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (t2-t1)/β)
-        s_s = W1[1]*W2[1]*g3*g8* factor*exp(im*ωout * t1 /β) * 2.0*cos(ωin * (-t1)/β)
+        r_r = W1[2]*W2[2]*g1*g2* factor*exp(im*ωout * t1 ) * 2.0*cos(ωin * (t2-t1)/β)
+        s_r = W1[1]*W2[2]*g1*g4* factor*exp(im*ωout * t1 ) * 2.0*cos(ωin * (-t1)/β)
+        r_s = W1[2]*W2[1]*g3*g6* factor*exp(im*ωout * t1 ) * 2.0*cos(ωin * (t2-t1)/β)
+        s_s = W1[1]*W2[1]*g3*g8* factor*exp(im*ωout * t1 ) * 2.0*cos(ωin * (-t1)/β)
 
-        result +=  (s_s+s_r+r_s+r_r) * 2.0
+        result -=  (s_s+s_r+r_s+r_r) * 2.0
 
     # bare interaction
     elseif config.curr==1
@@ -283,8 +292,8 @@ function run(steps)
     K2 = MonteCarlo.Tau(MomBin[end]*kF, kF)
     N2 = MonteCarlo.Discrete(0, floor(Int, FreqBin[end]/(2π/β*EF)-0.5))
 
-    dof = [[1,0,1,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
-#    dof = [[1,0,1,1,1,1,1],[3,1,1,1,1,1,1]] # degrees of freedom of the normalization diagram and the bubble
+#    dof = [[1,0,1,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
+    dof = [[1,0,1,1,1,1,1],[3,1,1,1,1,1,1]] # degrees of freedom of the normalization diagram and the bubble
 #    dof = [[3,1,1,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
 #    dof = [[3,1,1,1,1,1,1],[1,0,1,1,1,1,1]] # degrees of freedom of the normalization diagram and the bubble
     obs = zeros(Float64,(length(ExtFreqBin),kgrid.size,2))
@@ -292,7 +301,7 @@ function run(steps)
     #    nei = [[2,4],[3,1],[2,4],[1,3]]
 
     config = MonteCarlo.Configuration(steps, (T,K,Ext1,Ext2,Theta,K2,N2), dof, obs)
-    avg, std = MonteCarlo.sample(config, integrand, measure; print=0, Nblock=16)
+    avg, std = MonteCarlo.sample(config, integrand, measure; print=0, Nblock=256)
     # @profview MonteCarlo.sample(config, integrand, measure; print=0, Nblock=1)
     # sleep(100)
 
@@ -313,7 +322,7 @@ function run(steps)
         avg, std = avg/norm, std/norm
         for i in 1:length(ExtFreqBin)
             for j in 1:kgrid.size
-                @printf("%10.6f\t %10.6f\t %10.6f ± %10.6f \t %10.6f\n",
+                @printf("%10.8f\t %10.8f\t %10.8f ± %10.8f \t %10.8f\n",
                         ExtFreqBin[i],kgrid[j],
                         (avg[i,j,1]), (std[i,j,1]),#(avg[i,j,2]), (std[i,j,2]),
                         Δ_ext[i,j])

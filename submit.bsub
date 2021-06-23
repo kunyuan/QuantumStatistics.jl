@@ -1,0 +1,30 @@
+#!/bin/sh
+# embedded options to bsub - start with #BSUB
+### -- set the job Name --
+#BSUB -J CheckCorrection
+
+### –- specify queue --
+#BSUB -q short
+
+### -- ask for number of cores (default: 1) --
+#BSUB -n 128
+
+### -- specify that we need 2GB of memory per core/slot -- 
+#BSUB -R "rusage[mem=1024]"
+
+### -- set walltime limit: hh:mm --
+#BSUB -W 3:00 
+
+### -- Specify the output and error file. %J is the job-id -- 
+### -- -o and -e mean append, -oo and -eo mean overwrite -- 
+#BSUB -o Output_%J.out
+#BSUB -e Error_%J.err
+
+# here follow the commands you want to execute
+# 
+
+# load the necessary modules
+# NOTE: this is just an example, check with the available modules
+### This uses the LSB_DJOB_NUMPROC to assign all the cores reserved
+### This is a very basic syntax. For more complex examples, see the documentation
+mpiexecjl -n $LSB_DJOB_NUMPROC julia --project example/check_correction.jl 
