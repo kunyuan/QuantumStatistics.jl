@@ -214,7 +214,7 @@ function integrand(config)
         r_s = W1[2]*W2[1]*g2*g3* factor*exp(im*ωout * t1 ) * 2.0*cos(ωin * (t2-t1))
         s_s = W1[1]*W2[1]*g3*g4* factor*exp(im*ωout * t1 ) * 2.0*cos(ωin * (-t1))
 
-        result += (s_s+s_r+r_s+r_r)
+#        result += (s_s+s_r+r_s+r_r)
 
         # ω1 = (dot(q-k1, q-k1) - kF^2) * β
 
