@@ -127,7 +127,7 @@ Function Implicit_Renorm
 """
 
 
-function Implicit_Renorm(delta_0, delta , kgrid, qgrids, fdlr )
+function Implicit_Renorm(kernal, kgrid, qgrids, fdlr )
     NN=10000
     rtol=1e-5
     Looptype=1
@@ -138,8 +138,10 @@ function Implicit_Renorm(delta_0, delta , kgrid, qgrids, fdlr )
     lamu0=-2.0
     lamu=0.0
     n_change=10  #steps of power method iteration in one complete loop
-    n_change2=10+10 #total steps of one complete loop 
+    n_change2=10+10 #total steps of one complete loop
 
+    delta = zeros(Float64, (length(kgrid.grid), fdlr.size))
+    delta_0 = zeros(Float64, length(kgrid.grid)) .+ 1.0
     #Separate Delta
     d_0_accm=zeros(Float64, length(kgrid.grid))
     d_accm=zeros(Float64, (length(kgrid.grid), fdlr.size))
@@ -147,7 +149,7 @@ function Implicit_Renorm(delta_0, delta , kgrid, qgrids, fdlr )
     while(n<NN && err>rtol)
         F=calcF(delta_0, delta, fdlr, kgrid)
         n=n+1
-        delta_0_new, delta_new =  calcΔ(F, fdlr , kgrid, qgrids)./(-4*π*π)
+        delta_0_new, delta_new =  calcΔ(F, kernal, fdlr , kgrid, qgrids)./(-4*π*π)
         delta_0_low_new, delta_0_high_new, delta_low_new, delta_high_new = Separation(delta_0_new, delta_new, kgrid, fdlr)
         if(Looptype==0)
             accm=accm+1
@@ -158,6 +160,7 @@ function Implicit_Renorm(delta_0, delta , kgrid, qgrids, fdlr )
         else
             lamu = dot(delta_0_low_new, delta_0_low)
             delta_0_low_new = delta_0_low_new+shift*delta_0_low
+            delta_low_new = delta_low_new+shift*delta_low
             modulus = sqrt(dot(delta_0_low_new, delta_0_low_new))
             delta_0_low = delta_0_low_new ./ modulus
             delta_low = delta_low_new ./ modulus
@@ -185,7 +188,7 @@ function Implicit_Renorm(delta_0, delta , kgrid, qgrids, fdlr )
     # F_low, F_high=Separation_F(F, kgrid, fdlr)
     # while(n<NN && err>rtol)
     #     n=n+1
-    #     delta_0_new, delta_new = calcΔ(F, fdlr , kgrid, qgrids)./(-4*π*π)
+    #     delta_0_new, delta_new = calcΔ(F, kernal, fdlr , kgrid, qgrids)./(-4*π*π)
     #     F_new=calcF(delta_0_new, delta_new, fdlr, kgrid)
     #     F_low_new, F_high_new = Separation_F(F_new, kgrid, fdlr)
     #     println(Looptype)
@@ -215,60 +218,59 @@ function Implicit_Renorm(delta_0, delta , kgrid, qgrids, fdlr )
     return delta_0, delta
 end
 
-function Explicit_Solver(delta_0, delta , kgrid, qgrids, fdlr )
-    NN=100
-    rtol=1e-5
+function Explicit_Solver(kernal ,kgrid, qgrids, fdlr )
+    NN=1000
+    rtol=1e-6
     n=0
     err=1.0 
     shift=2.0
     lamu0=-2.0
+    delta = zeros(Float64, (length(kgrid.grid), fdlr.size))
+    delta_0 = zeros(Float64, length(kgrid.grid)) .+ 1.0
     delta_0_new=zeros(Float64, length(kgrid.grid))
     delta_new=zeros(Float64, (length(kgrid.grid), fdlr.size))
+    kf_label=1
+    for r in 1:length(kgrid.grid)
+        if kgrid.grid[r] < kF
+            global kf_label = r
+        end
+    end
+    println(kgrid.grid[kf_label])
     #Separate Delta
    
-    # d_accm=zeros(Float64, (length(kgrid.grid), fdlr.size))
-    # while(n<NN && err>rtol)
-    #     F=calcF(delta0, delta, fdlr, mom_ex)
-    #     n=n+1
-    #     delta_0, delta_new=calcΔ(F, kernal, fdlr , mom_ex, mom_in, wkgrid)
-    #     delta_low, delta_high=Separate(delta_0, delta, mom_ex, fdlr)
-    #     if(Looptype==0)
-    #         accm=accm+1
-    #         d_accm=d_accm+delta_high
-    #         delta=(delta.*to_low+d_accm./accm)
-    #     else
-    #         lamu=dot(delta.*to_low, delta_low)
-    #         delta_low=delta_low+shift*delta.*to_low
-    #         modulus=sqrt(dot(delta_low, delta_low))
-    #         delta=(delta_low/modulus+delta.*to_high)
-    #     end
-    #     if(n%n_change2==n_change)
-    #         Looptype=(Looptype+1)%2
-    #     elseif(n%n_change2==0)
-    #         accm=0
-    #         d_accm0=0*d_accm
-    #         err=abs(lamu-lamu0)
-    #         lamu0=lamu
-    #         println(lamu)
-    #         Looptype=(Looptype+1)%2
-    #     end
-        
-    # end
-
-    #Separate F
-    F=calcF(delta_0, delta, fdlr, kgrid)
     while(n<NN && err>rtol)
         n=n+1
-        delta_0_new, delta_new = calcΔ(F, fdlr , kgrid, qgrids)./(-4*π*π)
-        F_new=calcF(delta_0_new, delta_new, fdlr, kgrid)
-        lamu=dot(F, F_new)
-        F_new=F_new+shift*F
-        modulus=sqrt(dot(F_new, F_new))
-        F=F_new/modulus
+        F=calcF(delta_0, delta, fdlr, kgrid)
+        delta_0_new, delta_new = calcΔ(F, kernal, fdlr, kgrid, qgrids)./(-4*π*π)
+        #lamu = F_new[kf_label,1]/F[kf_label,1]
+        lamu = dot(delta, delta_new)
+        delta_0_new=delta_0_new+shift*delta_0
+        delta_new=delta_new+shift*delta
+        modulus=sqrt(dot(delta_new, delta_new))
+        #modulus = abs(F_new[kf_label,1])
+        delta_0 = delta_0_new/modulus
+        delta = delta_new/modulus
         err=abs(lamu-lamu0)
         lamu0=lamu
         println(lamu)
     end
+
+    #Separate F
+    # F=calcF(delta_0, delta, fdlr, kgrid)
+    # while(n<NN)# && err>rtol)
+    #     n=n+1
+    #     delta_0_new, delta_new = calcΔ(F, kernal, fdlr, kgrid, qgrids)./(-4*π*π)
+    #     F_new=calcF(delta_0_new, delta_new, fdlr, kgrid)
+    #     #lamu = F_new[kf_label,1]/F[kf_label,1]
+    #     lamu = dot(F, F_new)
+    #     F_new=F_new+shift*F
+    #     modulus=sqrt(dot(F_new, F_new))
+    #     #modulus = abs(F_new[kf_label,1])
+    #     F=F_new/modulus
+    #     err=abs(lamu-lamu0)
+    #     lamu0=lamu
+    #     println(lamu)
+    # end
     return delta_0_new, delta_new
 end
 
@@ -283,7 +285,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     Nk = 16
     order = 8
     maxK = 10.0 * kF
-    minK = 0.00001 * kF
+    minK = 0.00001 / (β * kF)
     
     kpanel = KPanel(Nk, kF, maxK, minK)
     kgrid = CompositeGrid(kpanel, order, :cheb)
@@ -291,10 +293,10 @@ if abspath(PROGRAM_FILE) == @__FILE__
     println("kgrid number: $(length(kgrid.grid))")
     println("max qgrid number: ", maximum([length(q.grid) for q in qgrids]))
     
-    Δ = zeros(Float64, (length(kgrid.grid), fdlr.size))
-    Δ0 = zeros(Float64, length(kgrid.grid)) .+ 1.0
-    #Δ0_final, Δ_final = Implicit_Renorm(Δ0 ,Δ , kgrid, qgrids, fdlr)
-    Δ0_final, Δ_final = Explicit_Solver(Δ0 ,Δ , kgrid, qgrids, fdlr)
+    #kernal = dH1_freq(kgrid, qgrids, fdlr)
+    kernal = dH1_tau(kgrid, qgrids, fdlr)
+    Δ0_final, Δ_final = Implicit_Renorm(kernal , kgrid, qgrids, fdlr)
+    #Δ0_final, Δ_final = Explicit_Solver(kernal, kgrid, qgrids, fdlr)
 
     Δ_freq = DLR.tau2matfreq(:fermi, Δ_final, fdlr, fdlr.n, axis=2)
     filename = "./test.dat"
