@@ -6,8 +6,8 @@ using QuantumStatistics
 using LinearAlgebra
 using Printf
 include("parameter.jl")
-include("eigen.jl")
-include("grid.jl")
+include("../eigen.jl")
+include("../grid.jl")
 
 """
 Function Separation
@@ -128,7 +128,7 @@ Function Implicit_Renorm
 
 
 function Implicit_Renorm(kernal, kgrid, qgrids, fdlr )
-    NN=1
+    NN=10000
     rtol=1e-5
     Looptype=1
     n=0
@@ -215,10 +215,6 @@ function Implicit_Renorm(kernal, kgrid, qgrids, fdlr )
     #         Looptype=(Looptype+1)%2
     #     end
     # end
-    filename = "../data/flow_$(WID).dat"
-    open(filename, "w") do io
-        @printf(io, "%32.17g\n", lamu)
-    end
     return delta_0, delta
 end
 
@@ -303,8 +299,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
     #Δ0_final, Δ_final = Explicit_Solver(kernal, kgrid, qgrids, fdlr)
 
     Δ_freq = DLR.tau2matfreq(:fermi, Δ_final, fdlr, fdlr.n, axis=2)
-    filename = "../data/delta_$(WID).dat"
-    #println(fdlr.n, fdlr.n[fdlr.size ÷ 2 + 1])
+    filename = "./test.dat"
+    println(fdlr.n, fdlr.n[fdlr.size ÷ 2 + 1])
     open(filename, "w") do io
         for r in 1:length(kgrid.grid)
             @printf(io, "%32.17g  %32.17g  %32.17g\n",kgrid.grid[r] ,Δ0_final[r] ,real(Δ_freq[r, fdlr.size ÷ 2 + 1]))
