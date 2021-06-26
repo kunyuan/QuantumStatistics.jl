@@ -142,15 +142,37 @@ function lindhard(x)
     end
 end
 
+
+"""
+   W_art(τ, q)
+
+An artificial interaction that mimic RPA and can be treated analytically.
+Return bare interaction v/β and dynamical part w.
+The interaction in frequency space would be:
+v = 4π * g / q^2
+w = -4π * g / q^2 * g*kF^3 / ( ω^2 + q^2*kF^2 + g*kF^3 )
+
+#Arguments:
+    - τ: τ
+    - q: q
+"""
+function W_art(τ, q, g = e0^2, β = β)
+    q2 = dot(q,q)
+    sq2g=sqrt(q2*kF^2+g*kF^3)
+    v = 4π * g / (q2)
+    w = -2*π*g^2*kF^3/(q2)/sq2g*(exp(-sq2g*τ)+exp(-sq2g*(β-τ)))/(1-exp(-sq2g*β))
+    return v/β, w
+end
+
 function interaction(q, τIn, τOut)
     dτ = abs(τOut - τIn)
     τ = dτ
 
 #    kQ = sqrt(dot(q, q))
-    q2 = dot(q,q)
-    g = e0^2
-    sq2g=sqrt(q2*kF^2+g*kF^3)
-    v = 4π * e0^2 / (q2 + mass2)
+    # q2 = dot(q,q)
+    # g = e0^2
+    # sq2g=sqrt(q2*kF^2+g*kF^3)
+    # v = 4π * e0^2 / (q2 + mass2)
     # if kQ <= qgrid.grid[1]
     #     w = v * Grid.linear2D(dW0, qgrid, τgrid, qgrid.grid[1] + 1.0e-14, dτ) # the current interpolation vanishes at q=0, which needs to be corrected!
     # else
@@ -159,8 +181,8 @@ function interaction(q, τIn, τOut)
     # v = 4π * e0^2 / (kQ^2 + mass2 + 4π * e0^2 * NF * lindhard(kQ / 2.0 / kF))
     # v = v/β - w
     #    v = v/β
-    w = -2*π*g^2*kF^3/(q2)/sq2g*(exp(-sq2g*τ)+exp(-sq2g*(β-τ)))/(1-exp(-sq2g*β))
-    return v/β, w
+#    w = -2*π*g^2*kF^3/(q2)/sq2g*(exp(-sq2g*τ)+exp(-sq2g*(β-τ)))/(1-exp(-sq2g*β))
+    return W_art(τ, q)
 end
 
 # function WRPA(τ,q)
