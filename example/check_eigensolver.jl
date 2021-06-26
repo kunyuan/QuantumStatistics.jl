@@ -149,7 +149,7 @@ function interaction(q, τIn, τOut)
 #    kQ = sqrt(dot(q, q))
     q2 = dot(q,q)
     g = e0^2
-    sq2g=sqrt(q2/kF^2+g)
+    sq2g=sqrt(q2*kF^2+g*kF^3)
     v = 4π * e0^2 / (q2 + mass2)
     # if kQ <= qgrid.grid[1]
     #     w = v * Grid.linear2D(dW0, qgrid, τgrid, qgrid.grid[1] + 1.0e-14, dτ) # the current interpolation vanishes at q=0, which needs to be corrected!
@@ -159,7 +159,7 @@ function interaction(q, τIn, τOut)
     # v = 4π * e0^2 / (kQ^2 + mass2 + 4π * e0^2 * NF * lindhard(kQ / 2.0 / kF))
     # v = v/β - w
     #    v = v/β
-    w = -2*π*g^2/(q2)/sq2g*(exp(-sq2g*τ)+exp(-sq2g*(β-τ)))/(1-exp(-sq2g*β))
+    w = -2*π*g^2*kF^3/(q2)/sq2g*(exp(-sq2g*τ)+exp(-sq2g*(β-τ)))/(1-exp(-sq2g*β))
     return v/β, w
 end
 
@@ -209,7 +209,7 @@ function integrand(config)
         r_0 = W1[2] * factor * exp(im*ωout * -t1 ) * gg
         s_0 = W1[1] * factor * gg0
 
-        result += r_0+s_0#r_0 + s_0
+        result += r_0#r_0 + s_0
     else
         result =  0.0+0.0*im
     end
