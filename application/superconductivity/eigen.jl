@@ -145,10 +145,10 @@ if abspath(PROGRAM_FILE) == @__FILE__
     fdlr = DLR.DLRGrid(:fermi, 10EF, β, 1e-10) 
                 
     ########## non-uniform kgrid #############
-    Nk = 16
-    order = 8
+    Nk = 32
+    order = 16
     maxK = 10.0 * kF
-    minK = 0.001 * kF
+    minK = 0.000001 * kF
     
     kpanel = KPanel(Nk, kF, maxK, minK)
     kgrid = CompositeGrid(kpanel, order, :cheb)
@@ -159,6 +159,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     qgrid2s = [CompositeGrid(QPanel(Nk, kF, maxK, minK, k), 2order, :gaussian) for k in kgrid.grid] # qgrid for each k in kgrid.grid
     
     kgrid_double = CompositeGrid(kpanel, 2 * order, :cheb)
+    # kgrid_double = CompositeGrid(kpanel, order, :cheb)
     qgrids_double = [CompositeGrid(QPanel(Nk, kF, maxK, minK, k), 2order, :gaussian) for k in kgrid_double.grid] # qgrid for each k in kgrid.grid
     
     Δ = zeros(Float64, (length(kgrid.grid), fdlr.size))
@@ -177,7 +178,11 @@ if abspath(PROGRAM_FILE) == @__FILE__
     println("sumF: $(sum(F)), maximum: $(maximum(abs.(F)))")
     
     printstyled("Calculating Δ\n", color=:yellow)
+    
+    Δ0, Δ = calcΔ(F, fdlr, kgrid, qgrids)
     @time Δ0, Δ = calcΔ(F, fdlr, kgrid, qgrids)
+    println("sumΔ0: $(sum(Δ0)), maximum: $(maximum(abs.(Δ0)))")
+    
     Δ_freq = DLR.tau2matfreq(:fermi, Δ, fdlr, fdlr.n, axis=2)
     
     Δ_2 = zeros(Float64, (length(kgrid_double.grid), fdlr.size))

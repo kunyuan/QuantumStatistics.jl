@@ -2,15 +2,15 @@
 using StaticArrays
 
 ###### constants ###########
-const e0 = sqrt(1.024)  #sqrt(2) electric charge
+const e0 = sqrt(1.024)  # sqrt(2) electric charge
 const me = 0.5  # electron mass
 const dim = 3    # dimension (D=2 or 3, doesn't work for other D!!!)
 const spin = 2  # number of spins
 
 const rs = 1.0  
-const kF = 1.0  #(dim == 3) ? (9π / (2spin))^(1 / 3) / rs : sqrt(4 / spin) / rs
-const EF = 1.0     #kF^2 / (2me)
-const β = 20.0 / kF^2
+const kF = 1.0  # (dim == 3) ? (9π / (2spin))^(1 / 3) / rs : sqrt(4 / spin) / rs
+const EF = 1.0     # kF^2 / (2me)
+const β = 1000.0 / kF^2
 const mass2 = 0.01
 
 const Weight = SVector{2,Float64}
