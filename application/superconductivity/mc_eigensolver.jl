@@ -7,6 +7,8 @@ using PyCall
 const Steps = 4e6
 
 include("parameter.jl")
+include("eigen.jl")
+include("grid.jl")
 #include("../application/electron_gas/RPA.jl")
 
 const ℓ=0
@@ -26,8 +28,16 @@ end
 println("legendre(0.5)=",legendre(0.5))
 
 dlr = DLR.DLRGrid(:fermi, 10*EF,β, 1e-2)
-const kgrid = Grid.fermiKUL(kF, 9kF, 0.001kF, 3,4) 
+#const kgrid = Grid.fermiKUL(kF, 9kF, 0.001kF, 3,4) 
 #const kgrid = Grid.Uniform{Float64, 2}(kF, 1.001kF,[false, false])
+const Nk = 16
+const order = 8
+const maxK = 10.0 * kF
+const minK = 0.00001 / (β * kF)
+const kpanel = KPanel(Nk, kF, maxK, minK)
+const kgrid = CompositeGrid(kpanel, order, :cheb)
+fdlr = DLR.DLRGrid(:fermi, 100EF, β, 1e-10)
+
 
 #
 # G(w,k)G(-w,-k)
