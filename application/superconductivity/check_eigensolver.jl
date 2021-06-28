@@ -224,7 +224,7 @@ function integrand(config)
         r_0 = W1[2] * factor * exp(im*ωout * t1 ) * gg
         s_0 = W1[1] * factor * gg0
 
-        result += r_0 + s_0
+        result += s_0#r_0 + s_0
 
     elseif config.curr==2
         T,Ext1,Ext2,Theta,K2 = config.var[1],config.var[2], config.var[3],config.var[4],config.var[5]
