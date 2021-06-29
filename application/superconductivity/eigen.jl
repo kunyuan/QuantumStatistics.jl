@@ -76,7 +76,7 @@ calculate the F function in τ-k representation
 - fdlr::DLRGrid: DLR Grid that contains the imaginary-time grid
 """
 function calcF(Δ0, Δ, fdlr, k::CompositeGrid)
-    Δ = DLR.tau2matfreq(:fermi, Δ, fdlr, fdlr.n, axis=2)
+    Δ = DLR.tau2matfreq(:acorr, Δ, fdlr, fdlr.n, axis=2)
     #F = zeros(ComplexF64, (length(k.grid), fdlr.size))
     F = zeros(ComplexF64, (length(k.grid), fdlr.size))
 
@@ -91,10 +91,9 @@ function calcF(Δ0, Δ, fdlr, k::CompositeGrid)
         end
 
     end
-    F_max=maximum(imag.(F))
-    F = real.(F)
-    println("F_imag=$(F_max)")
-    F = DLR.matfreq2tau(:fermi, F, fdlr, fdlr.τ, axis=2)
+    
+    #println("F_imag=$(F_max)")
+    F = DLR.matfreq2tau(:acorr, F, fdlr, fdlr.τ, axis=2)
     # gg_τ = GG_τ(kgrid, fdlr.τ)
     
     # for (ki, k) in enumerate(k.grid)
@@ -189,12 +188,12 @@ function calcΔ(F,  kernal, fdlr, kgrid, qgrids)
     Δ = zeros(Float64, (length(kgrid.grid), fdlr.size))
     order = kgrid.order
 
-    F_ins = DLR.tau2dlr(:fermi, F, fdlr, axis=2)
-    F_ins = DLR.dlr2tau(:fermi, F_ins, fdlr, [1.0e-12,] , axis=2)[:,1]
+    F_ins = DLR.tau2dlr(:acorr, F, fdlr, axis=2)
+    F_ins = DLR.dlr2tau(:acorr, F_ins, fdlr, [1.0e-12,] , axis=2)[:,1]
 
-    F_ins2 = DLR.tau2dlr(:fermi, F, fdlr, axis=2)
-    F_ins2 = DLR.dlr2tau(:fermi, F_ins2, fdlr, [β-1.0e-12,] , axis=2)[:,1]
-    println("F_ins[0] = $((F_ins[1])), F_ins[β]=$((F_ins2[1])) ")
+    #F_ins2 = DLR.tau2dlr(:acorr, F, fdlr, axis=2)
+    #F_ins2 = DLR.dlr2tau(:acorr, F_ins2, fdlr, [β-1.0e-12,] , axis=2)[:,1]
+    #println("F_ins[0] = $((F_ins[1])), F_ins[β]=$((F_ins2[1])) ")
     for (ki, k) in enumerate(kgrid.grid)
         
         kpidx = 1 # panel index of the kgrid
@@ -287,7 +286,7 @@ end
 
 if abspath(PROGRAM_FILE) == @__FILE__
     
-    fdlr = DLR.DLRGrid(:fermi, 1000EF, β, 1e-10) 
+    fdlr = DLR.DLRGrid(:acorr, 1000EF, β, 1e-10) 
     bdlr = DLR.DLRGrid(:corr, 100EF, β, 1e-10) 
     ########## non-uniform kgrid #############
     Nk = 16
@@ -320,8 +319,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
     Δ0 = zeros(Float64, length(kgrid.grid)) .+ 1.0
     F = calcF(Δ0, Δ, fdlr, kgrid)
     gg_τ = GG_τ(kgrid, [1.0e-12,])
-    F_ins = DLR.tau2dlr(:fermi, F, fdlr, axis=2)
-    F_ins = DLR.dlr2tau(:fermi, F_ins, fdlr, [1.0e-12,] , axis=2)[:,1]
+    F_ins = DLR.tau2dlr(:acorr, F, fdlr, axis=2)
+    F_ins = DLR.dlr2tau(:acorr, F_ins, fdlr, [1.0e-12,] , axis=2)[:,1]
     # testGrid(kgrid, qgrids, qgrid2s, F)
     # println(size(F))
     # filename = "./bare.dat"
@@ -354,7 +353,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     printstyled("Calculating Δ\n", color=:yellow)
     @time Δ0, Δ = calcΔ(F, kernal, fdlr ,kgrid, qgrids)
   
-    fdlr2 = DLR.DLRGrid(:fermi, 100EF, β, 1e-10) 
+    fdlr2 = DLR.DLRGrid(:acorr, 100EF, β, 1e-10) 
     bdlr2 = DLR.DLRGrid(:corr, 100EF, β, 1e-10) 
 
     kernal_2 = dH1_tau(kgrid, qgrids, fdlr2)
@@ -364,8 +363,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
     F_2 = calcF(Δ0_2, Δ_2, fdlr2, kgrid)
     @time Δ0_2, Δ_2 = calcΔ(F_2, kernal_2, fdlr2 ,kgrid, qgrids)
 
-    Δ_freq = DLR.tau2matfreq(:fermi, Δ, fdlr, fdlr.n, axis=2)
-    Δ_freq_2 = DLR.tau2matfreq(:fermi, Δ_2, fdlr2, fdlr.n, axis=2)
+    Δ_freq = DLR.tau2matfreq(:acorr, Δ, fdlr, fdlr.n, axis=2)
+    Δ_freq_2 = DLR.tau2matfreq(:acorr, Δ_2, fdlr2, fdlr.n, axis=2)
     err0 = maximum(abs.(Δ0_2-Δ0))
     err = maximum(abs.(Δ_freq_2-Δ_freq))
     ind=findmax(abs.(Δ0_2-Δ0))[2]

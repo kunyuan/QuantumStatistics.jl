@@ -7,11 +7,11 @@ const me = 0.5  # electron mass
 const dim = 3    # dimension (D=2 or 3, doesn't work for other D!!!)
 const spin = 2  # number of spins
 
-const rs = 3.0
+const rs = 1.0
 const e0 = sqrt(rs*2.0/(9π/4.0)^(1.0/3))  #sqrt(2) electric charge
 const kF = 1.0  #(dim == 3) ? (9π / (2spin))^(1 / 3) / rs : sqrt(4 / spin) / rs
 const EF = 1.0     #kF^2 / (2me)
-const β = 500.0 / kF^2
+const β = 4000.0 / kF^2
 const mass2 = 0.01
 const mom_sep = 0.1
 #const Weight = SVector{2,Float64}
