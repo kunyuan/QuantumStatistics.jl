@@ -50,7 +50,7 @@ function kernalDiscretization(type, Dτ, Dω, Λ, rtol)
     npo = Int(ceil(log(Λ) / log(2.0))) # subintervals on [0,lambda] in omega space (subintervals on [-lambda,lambda] is 2*npo)
 
 
-    if type == :corr
+    if type == :corr || type ==:acorr
         ############# Tau discretization ##############
         # Panel break points for the imaginary time ∈ (0, 1)
         # get exponentially dense near 0⁺ 
@@ -114,7 +114,7 @@ function preciseKernel(type, τ, ω)
         halfτ = ((τ.np - 1) ÷ 2) * τ.degree
         kernel[1:halfτ, :] = Spectral.kernelT(type, τ.grid[1:halfτ], ω.grid, 1.0)
         kernel[end:-1:(halfτ + 1), :] = Spectral.kernelT(type, τ.grid[1:halfτ], ω.grid[end:-1:1], 1.0)
-    elseif type==:corr
+    elseif type==:corr || type==:acorr
         kernel = Spectral.kernelT(type, τ.grid, ω.grid, 1.0)
         # kernel[end:-1:(halfτ + 1), :] = Spectral.kernelT(type, τ.grid[1:halfτ], ω.grid, 1.0)
         # @assert all(kernel[1, :] ≈ kernel[end, :]) 
@@ -241,12 +241,12 @@ function dlr(type, Λ, rtol)
     ##########  dlr grid for ωn  ###################
     println("Calculating ωn grid ...")
 
-    if type==:corr
+    if type==:corr || type==:acorr
         Nωn = Int(ceil(Λ)) * 2 # expect Nω ~ para.Λ/2π, drop 2π on the safe side
         ωnkernel = zeros(Float64, (rank, Nωn + 1))
-        ωnGrid = [w for w in 0:Nωn] # fermionic Matsubara frequency ωn=(2n+1)π
-        # ωnkernel = zeros(Complex{Float64}, (rank, 2Nωn + 1))
-        # ωnGrid = [w for w in -Nωn:Nωn] # fermionic Matsubara frequency ωn=(2n+1)π
+        ωnGrid = [w for w in 0:Nωn]
+        # fermionic Matsubara frequency ωn=(2n+1)π for type==:acorr
+        # bosonic Matsubara frequency ωn=2nπ for type==:corr
     else
         Nωn = Int(ceil(Λ)) * 2 # expect Nω ~ para.Λ/2π, drop 2π on the safe side
         ωnkernel = zeros(Complex{Float64}, (rank, 2Nωn + 1))

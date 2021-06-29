@@ -26,6 +26,8 @@ Compute the imaginary-time kernel of different type.
         return kernelBoseT(τ, ω, β)
     elseif type == :corr
         return kernelCorrT(τ, ω, β)
+    elseif type == :acorr
+        return kernelAnormalCorrT(τ, ω, β)
     else
         @error "Type $type      is not implemented!"
     end
@@ -123,13 +125,34 @@ K(τ) = e^{-ω|τ|}+e^{-ω(β-|τ|)}
 
 # Arguments
 - `τ`: the imaginary time, must be (-β, β]
-- `ω`: frequency
+- `ω`: frequency, ω>=0
 - `β = 1.0`: the inverse temperature 
 """
 @inline function kernelCorrT(τ::T, ω::T, β=T(1)) where {T <: AbstractFloat}
-    (-β < τ <= β) || error("τ must be (-β, β]")
+    (-β < τ <= β) || error("τ must be (0, β]")
+    (ω>=0) || error("ω must be >=0")
     τ=abs(τ)
     return exp(-ω*τ)+exp(-ω*(β-τ))
+end
+
+"""
+    kernelAnormalCorrT(τ, ω, β=1.0)
+
+Compute the imaginary-time kernel for correlation function ``⟨O(τ)O(0)⟩``. Machine accuracy ~eps(C) is guaranteed``
+```math
+K(τ) = e^{-ω|τ|}-e^{-ω(β-|τ|)}
+```
+
+# Arguments
+- `τ`: the imaginary time, must be (0, β]
+- `ω`: frequency, ω>=0
+- `β = 1.0`: the inverse temperature 
+"""
+@inline function kernelAnormalCorrT(τ::T, ω::T, β=T(1)) where {T <: AbstractFloat}
+    (-β < τ <= β) || error("τ must be (-β, β]")
+    (ω>=0) || error("ω must be >=0")
+    τ=abs(τ)
+    return exp(-ω*τ)-exp(-ω*(β-τ))
 end
 
 
@@ -151,6 +174,8 @@ Compute the imaginary-time kernel of different type. Assume ``k_B T/\\hbar=1``
         return kernelBoseΩ(n, ω, β)
     elseif type == :corr
         return kernelCorrΩ(n, ω, β)
+    elseif type == :acorr
+        return kernelAnormalCorrΩ(n, ω, β)
     else
     @error "Type $type is not implemented!"
     end
@@ -242,6 +267,35 @@ where ``ω_n=2nπ/β``. The convention here is consist with the book "Quantum Ma
         # expm1(x)=exp(x)-1 fixes the accuracy for x-->0^+
         K = 2ω/(ω^2+ω_n^2)*(-expm1(-x))
     end
+    if !isfinite(K)
+        throw(DomainError(-1, "Got $K for the parameter $n, $ω and $β"))
+    end
+    return K
+end
+
+"""
+    kernelAnormalCorrΩ(n::Int, ω::T, β::T) where {T <: AbstractFloat}
+
+Compute the Matsubara-frequency kernel for a anormalous fermionic correlator with particle-hole symmetry.
+```math
+K(iω_n) = \\frac{2ω}{ω^2+ω_n^2}(1+e^{-ωβ}),
+```
+where ``ω_n=(2n+1)π/β``. The convention here is consist with the book "Quantum Many-particle Systems" by J. Negele and H. Orland, Page 95
+
+# Arguments
+- `n`: index of the fermionic Matsubara frequency
+- `ω`: energy 
+- `β`: the inverse temperature 
+"""
+@inline function kernelAnormalCorrΩ(n::Int, ω::T, β=T(1)) where {T <: AbstractFloat}
+    # Matsurbara-frequency correlator
+    if ω<T(0.0)
+        throw(DomainError("real frequency should be positive!"))
+    end
+    x=ω*β
+    ω_n = (2n+1) * π / β
+    # expm1(x)=exp(x)-1 fixes the accuracy for x-->0^+
+    K = 2ω/(ω^2+ω_n^2)*(1+exp(-ω*β))
     if !isfinite(K)
         throw(DomainError(-1, "Got $K for the parameter $n, $ω and $β"))
     end
