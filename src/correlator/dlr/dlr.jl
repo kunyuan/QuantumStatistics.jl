@@ -72,7 +72,7 @@ struct DLRGrid
         n = Int.(grid[:, 4])
         if type==:fermi
             ωn = @. (2n + 1.0) * π / β
-        elseif type ==:corr || type==:boson
+        elseif type ==:corr || type==:boson || type==:acorr
             ωn = @. 2n * π / β
         else
             error("$type not implemented!")

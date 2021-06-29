@@ -9,7 +9,7 @@ rtol = [-4, -6, -8, -10, -12]
 for lambda in Λ
     for err in rtol
         # dlr = DLR.dlr(:fermi, lambda, 10.0^err)
-        dlr = DLR.dlr(:corr, lambda, 10.0^err)
+        dlr = DLR.dlr(:acorr, lambda, 10.0^err)
         filename = "basis/dlr$(lambda)_1e$err.dlr"
         open(filename, "w") do io
             for r in 1:length(dlr[:ω])

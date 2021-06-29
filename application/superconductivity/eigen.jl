@@ -10,8 +10,8 @@ include("grid.jl")
 function KGrid_bose(Order, Nk)
     maxK = 10.0
     minK = 0.001
-    #Nk = 10
-    #Order = 8 # Legendre polynomial order
+    # Nk = 10
+    # Order = 8 # Legendre polynomial order
     panel = Grid.boseKUL(0.5 * kF, maxK, minK, Nk, 1).grid
     panel[1] = 0.0  # the kgrid start with 0.0
     println("Panels Num: ", length(panel))
@@ -21,9 +21,9 @@ function KGrid_bose(Order, Nk)
     println("Guassian quadrature points : ", x)
     println("Guassian quadrature weights: ", w)
 
-    println("KGrid Num: ", (length(panel)-1) * Order )
+    println("KGrid Num: ", (length(panel) - 1) * Order)
 
-    kgrid = zeros(Float64, (length(panel)-1) * Order )
+    kgrid = zeros(Float64, (length(panel) - 1) * Order)
     wkgrid = similar(kgrid)
     
     for pidx in 1:length(panel) - 1
@@ -35,28 +35,28 @@ function KGrid_bose(Order, Nk)
             wkgrid[idx] = (b - a) / 2 * w[o]
         end
     end
-    #kgrid[length(kgrid)]=maxK
+    # kgrid[length(kgrid)]=maxK
     return kgrid, wkgrid
 end
 
 
 function build_int(k, q, kbose_grid)
-    result=FLoat64[]
-    push!(result, abs(k-q))
+    result = FLoat64[]
+    push!(result, abs(k - q))
     for (pi, p) in enumerate(kbose_grid)
-        if(p>abs(k-q)&&p<k+q)
+        if (p > abs(k - q) && p < k + q)
             push!(result, p)
         end
     end
-    push!(result, k+q)
+    push!(result, k + q)
     return result
 end
 
-function legendre_dc(kernal_bose, fdlr, kgrid ,qgrid, kbose_grid)
+function legendre_dc(kernal_bose, fdlr, kgrid, qgrid, kbose_grid)
     kernal = zeros(FLoat64, (fdlr.size, length(kgrid), length(kgrid)))
     for (ki, k) in enumerate(kgrid)
         for (qi, q) in enumerate(qgrid[ki])
-            mom_int, w_mom_int=build_int(k, q, kbose_grid)
+            mom_int, w_mom_int = build_int(k, q, kbose_grid)
             
         end
     end
@@ -110,7 +110,7 @@ function dH1(k, p, τ)
     g = e0^2
     gh = sqrt(g)
     if abs(k - p) > 1.0e-12
-        return -2π * gh^3 * log((abs(k - p) + gh)/(abs(k-p))) * (exp(-gh * τ) + exp(-gh * (β - τ))) / (1 - exp(-gh * β))
+        return -2π * gh^3 * log((abs(k - p) + gh) / (abs(k - p))) * (exp(-gh * τ) + exp(-gh * (β - τ))) / (1 - exp(-gh * β))
         # return -2π * gh^3 * (log((abs(k - p) + gh))) * (exp(-gh * τ) + exp(-gh * (β - τ))) / (1 - exp(-gh * β))
     else
         return 0.0
@@ -156,8 +156,8 @@ function dH1_tau(kgrid, qgrids, fdlr)
         end
     end
 
-    #result_τ = DLR.matfreq2tau(:fermi, kernal, fdlr, fdlr.τ, axis=3)
-    #println(maximum(abs.(imag.(result_τ))))
+    # result_τ = DLR.matfreq2tau(:fermi, kernal, fdlr, fdlr.τ, axis=3)
+    # println(maximum(abs.(imag.(result_τ))))
     return kernal
 end
 
@@ -222,7 +222,7 @@ function calcΔ(F,  kernal, fdlr, kgrid, qgrids)
                 FF = barycheb(order, q, fx, w, x) # the interpolation is independent with the panel length
 
                 wq = qgrids[ki].wgrid[qi]
-                #Δ[ki, τi] += dH1(k, q, τ) * FF * wq
+                # Δ[ki, τi] += dH1(k, q, τ) * FF * wq
                 Δ[ki, τi] += kernal[ki ,qi ,τi] * FF * wq
                 @assert isfinite(Δ[ki, τi]) "fail Δ at $ki, $τi with $(Δ[ki, τi]), $FF\n $q for $fx\n $x \n $w\n $q < $(kgrid.panel[kpidx + 1])"
 
@@ -307,6 +307,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     kernal = dH1_tau(kgrid, qgrids, fdlr)
 
     kgrid_double = CompositeGrid(kpanel, 2 * order, :cheb)
+    # kgrid_double = CompositeGrid(kpanel, order, :cheb)
     qgrids_double = [CompositeGrid(QPanel(Nk, kF, maxK, minK, k), 2order, :gaussian) for k in kgrid_double.grid] # qgrid for each k in kgrid.grid
 
     #kernal_double = dH1_freq(kgrid, qgrids, fdlr)
