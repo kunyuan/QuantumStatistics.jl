@@ -125,6 +125,9 @@ function tau2dlr(type, green, dlrGrid::DLRGrid; axis=1, rtol=1e-12)
     ωGrid = dlrGrid.ω
 
     kernel = kernelT(type, τGrid, ωGrid, dlrGrid.β)
+    typ = promote_type(eltype(kernel), eltype(green))
+    kernel = convert.(typ, kernel)
+    green = convert.(typ, green)
     # kernel, ipiv, info = LAPACK.getrf!(Float64.(kernel)) # LU factorization
     kernel, ipiv, info = LAPACK.getrf!(kernel) # LU factorization
 
@@ -182,6 +185,9 @@ function matfreq2dlr(type, green, dlrGrid::DLRGrid; axis=1, rtol=1e-12)
     ωGrid = dlrGrid.ω
 
     kernel = kernelΩ(type, nGrid, ωGrid, dlrGrid.β)
+    typ = promote_type(eltype(kernel), eltype(green))
+    kernel = convert.(typ, kernel)
+    green = convert.(typ, green)
     # kernel, ipiv, info = LAPACK.getrf!(Complex{Float64}.(kernel)) # LU factorization
     kernel, ipiv, info = LAPACK.getrf!(kernel) # LU factorization
 

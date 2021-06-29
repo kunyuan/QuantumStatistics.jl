@@ -6,6 +6,64 @@ using Printf
 include("parameter.jl")
 include("grid.jl")
 
+
+function KGrid_bose(Order, Nk)
+    maxK = 10.0
+    minK = 0.001
+    # Nk = 10
+    # Order = 8 # Legendre polynomial order
+    panel = Grid.boseKUL(0.5 * kF, maxK, minK, Nk, 1).grid
+    panel[1] = 0.0  # the kgrid start with 0.0
+    println("Panels Num: ", length(panel))
+
+    # n: polynomial order
+    x, w = gausslegendre(Order)
+    println("Guassian quadrature points : ", x)
+    println("Guassian quadrature weights: ", w)
+
+    println("KGrid Num: ", (length(panel) - 1) * Order)
+
+    kgrid = zeros(Float64, (length(panel) - 1) * Order)
+    wkgrid = similar(kgrid)
+
+    for pidx in 1:length(panel) - 1
+        a, b = panel[pidx], panel[pidx + 1]
+        for o in 1:Order
+            idx = (pidx - 1) * Order + o
+            kgrid[idx] = (a + b) / 2 + (b - a) / 2 * x[o]
+            @assert kgrid[idx] > a && kgrid[idx] < b
+            wkgrid[idx] = (b - a) / 2 * w[o]
+        end
+    end
+    # kgrid[length(kgrid)]=maxK
+    return kgrid, wkgrid
+end
+
+
+function build_int(k, q, kbose_grid)
+    result = FLoat64[]
+    push!(result, abs(k - q))
+    for (pi, p) in enumerate(kbose_grid)
+        if (p > abs(k - q) && p < k + q)
+            push!(result, p)
+        end
+    end
+    push!(result, k + q)
+    return result
+end
+
+function legendre_dc(kernal_bose, fdlr, kgrid, qgrid, kbose_grid)
+    kernal = zeros(FLoat64, (fdlr.size, length(kgrid), length(kgrid)))
+    for (ki, k) in enumerate(kgrid)
+        for (qi, q) in enumerate(qgrid[ki])
+            mom_int, w_mom_int = build_int(k, q, kbose_grid)
+            
+        end
+    end
+end
+
+
+
 """
 calcF(Δ, kgrid, fdlr)
 
@@ -36,12 +94,58 @@ function dH1(k, p, τ)
     g = e0^2
     gh = sqrt(g)
     if abs(k - p) > 1.0e-12
-        return -2π * gh^3 * (log((abs(k - p) + gh)) - log(abs(k - p))) * (exp(-gh * τ) + exp(-gh * (β - τ))) / (1 - exp(-gh * β))
+        return -2π * gh^3 * log((abs(k - p) + gh) / (abs(k - p))) * (exp(-gh * τ) + exp(-gh * (β - τ))) / (1 - exp(-gh * β))
         # return -2π * gh^3 * (log((abs(k - p) + gh))) * (exp(-gh * τ) + exp(-gh * (β - τ))) / (1 - exp(-gh * β))
     else
         return 0.0
 end
 end
+
+function dH1_freq(kgrid, qgrids, fdlr)
+    g = e0^2
+    kernal = zeros(Float64, (length(kgrid.grid), length(qgrids[1].grid), fdlr.size))
+
+    for (ki, k) in enumerate(kgrid.grid)
+        for (pi, p) in enumerate(qgrids[ki].grid)
+            for (ni, n) in enumerate(fdlr.n)
+                if abs(k - p) > 1.0e-12
+                    ω_n = 2 * π * n / β + π / β
+                    kernal[ki,pi,ni] = -2 * π * g^2 / (ω_n^2 + g) * ( log((k + p)^2 / (k - p)^2) - log(((k + p)^2 + ω_n^2 + g) / ((k - p)^2 + ω_n^2 + g)) )
+                else
+                    kernal[ki,pi,ni] = 0
+                end
+            end
+        end
+    end
+
+    result_τ = DLR.matfreq2tau(:fermi, kernal, fdlr, fdlr.τ, axis=3)
+    println(maximum(abs.(imag.(result_τ))))
+    return real.(result_τ)
+end
+
+function dH1_tau(kgrid, qgrids, fdlr)
+    g = e0^2
+    kernal = zeros(Float64, (length(kgrid.grid), length(qgrids[1].grid), fdlr.size))
+
+    for (ki, k) in enumerate(kgrid.grid)
+        for (pi, p) in enumerate(qgrids[ki].grid)
+            for (τi, τ) in enumerate(fdlr.τ)
+                if abs(k - p) > 1.0e-12
+                   
+                    kernal[ki,pi,τi] = dH1(k, p, τ)
+                else
+                    kernal[ki,pi,τi] = 0
+                end
+            end
+        end
+    end
+
+    # result_τ = DLR.matfreq2tau(:fermi, kernal, fdlr, fdlr.τ, axis=3)
+    # println(maximum(abs.(imag.(result_τ))))
+    return kernal
+end
+
+
 
 function bare(k, p)
     if abs(k - p) > 1.0e-12
@@ -62,7 +166,7 @@ Calculate Δ function in k grid
 - kgrid : CompositeGrid for k
 - qgrids : vector of CompositeGrid, each element is a q grid for a given k grid
 """
-function calcΔ(F, fdlr, kgrid, qgrids)
+function calcΔ(F,  kernal, fdlr, kgrid, qgrids)
     
     Δ0 = zeros(Float64, length(kgrid.grid))
     Δ = zeros(Float64, (length(kgrid.grid), fdlr.size))
@@ -88,14 +192,15 @@ function calcΔ(F, fdlr, kgrid, qgrids)
                 @assert kpidx <= kgrid.Np
             end
 
+            
             for (τi, τ) in enumerate(fdlr.τ)
 
                 fx = @view F[head:tail, τi] # all F in the same kpidx-th K panel
                 FF = barycheb(order, q, fx, w, x) # the interpolation is independent with the panel length
 
                 wq = qgrids[ki].wgrid[qi]
-                Δ[ki, τi] += dH1(k, q, τ) * FF * wq
-
+                # Δ[ki, τi] += dH1(k, q, τ) * FF * wq
+                Δ[ki, τi] += kernal[ki ,qi ,τi] * FF * wq
                 @assert isfinite(Δ[ki, τi]) "fail Δ at $ki, $τi with $(Δ[ki, τi]), $FF\n $q for $fx\n $x \n $w\n $q < $(kgrid.panel[kpidx + 1])"
 
                 if τi == 1 
@@ -148,7 +253,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     Nk = 32
     order = 16
     maxK = 10.0 * kF
-    minK = 0.000001 * kF
+    minK = 0.00001 * kF
     
     kpanel = KPanel(Nk, kF, maxK, minK)
     kgrid = CompositeGrid(kpanel, order, :cheb)
