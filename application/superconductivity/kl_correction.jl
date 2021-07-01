@@ -3,7 +3,7 @@
 using QuantumStatistics, LinearAlgebra, Random, Printf, BenchmarkTools, InteractiveUtils, Parameters, Dierckx
 # using ProfileView
 using PyCall
-const Steps = 1e8
+const Steps = 1e7
 
 srcdir = "."
 rundir = isempty(ARGS) ? "." : (pwd()*"/"*ARGS[1])
@@ -28,8 +28,9 @@ end
 println("legendre(0.5)=",legendre(0.5))
 
 dlr = DLR.DLRGrid(:fermi, 10*EF,β, 1e-2)
-const kgrid = Grid.fermiKUL(kF, 9kF, 0.001kF, 1,1) 
+const kgrid = Grid.fermiKUL(kF, 9kF, 0.001kF, 2,2) 
 #const kgrid = Grid.Uniform{Float64, 2}(kF, 1.001kF,[false, false])
+MomBin = kgrid.grid
 
 #
 # G(w,k)G(-w,-k)
@@ -72,6 +73,11 @@ function GG(ωin, k, β=1.0)
     return 1.0/((ωin-ΣI) ^2 + (ω+ΣR)^2 )
 end
 
+function GG_τ(k, τ)
+    ω = (k^2 / (2me) - EF)
+    return (exp(-ω*τ)-exp(-ω*(β-τ)))/(1+exp(-ω*β))/2.0/ω
+end
+
 #
 # gap-function
 #
@@ -112,8 +118,15 @@ end
 
 # println(delta_spl(0.999, 0.001))
 
-function F(k, t)
+function Δ(ω, k, isNormed=false)
     return 1.0
+end
+
+function F(k, t)
+    if t<0
+        t=-t
+    end
+    return GG_τ(k, t)
 end
 
 #ExtFreqBin = FreqBin[1:9]*kF^2
@@ -269,8 +282,8 @@ function integrand(config)
         W1 = interaction(k1-k2, 0, t1)
 
         factor =  -1.0/(2π)^2/β * legendre(cos(θ))*sin(θ)/2.0 * kgrid[Ext2[1]]*K2[1]
-        r_0 = W1[2] * factor * exp(im*ωout * t1 ) * F(K[2],-t1)
-        s_0 = W1[1] * factor * F(K[2],0.0)
+        r_0 = W1[2] * factor * exp(im*ωout * t1 ) * F(K2[1],-t1)
+        s_0 = W1[1] * factor * F(K2[1],0.0)
 
         result += r_0 + s_0
     else
@@ -299,7 +312,7 @@ function run(steps)
 #    N2 = MonteCarlo.Discrete(0, floor(Int, FreqBin[end]/(2π/β*EF)-0.5))
 
 #    dof = [[1,0,1,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
-    dof = [[1,0,1,1,1,1,1],[3,1,1,1,1,1,1]] # degrees of freedom of the normalization diagram and the bubble
+    dof = [[1,0,1,1,1,1],[3,1,1,1,1,1]] # degrees of freedom of the normalization diagram and the bubble
 #    dof = [[3,1,1,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
 #    dof = [[3,1,1,1,1,1,1],[1,0,1,1,1,1,1]] # degrees of freedom of the normalization diagram and the bubble
     obs = zeros(Float64,(length(ExtFreqBin),kgrid.size,2))
@@ -307,7 +320,7 @@ function run(steps)
     #    nei = [[2,4],[3,1],[2,4],[1,3]]
 
     config = MonteCarlo.Configuration(steps, (T,K,Ext1,Ext2,Theta,K2), dof, obs)
-    avg, std = MonteCarlo.sample(config, integrand, measure; print=0, Nblock=256)
+    avg, std = MonteCarlo.sample(config, integrand, measure; print=0, Nblock=16)
     # @profview MonteCarlo.sample(config, integrand, measure; print=0, Nblock=1)
     # sleep(100)
 
