@@ -7,7 +7,14 @@ using LinearAlgebra
 using Printf
 #using Gaston
 #using Plots
-include("parameter.jl")
+
+srcdir = "."
+rundir = isempty(ARGS) ? "." : (pwd()*"/"*ARGS[1])
+
+push!(LOAD_PATH, rundir)
+using parameter
+
+
 include("eigen.jl")
 include("grid.jl")
 
@@ -130,6 +137,7 @@ Function Implicit_Renorm
 
 
 function Implicit_Renorm(kernal, kernal_bare, kgrid, qgrids, fdlr )
+    
     NN=1000
     rtol=1e-6
     Looptype=1
@@ -148,6 +156,7 @@ function Implicit_Renorm(kernal, kernal_bare, kgrid, qgrids, fdlr )
     d_0_accm=zeros(Float64, length(kgrid.grid))
     d_accm=zeros(Float64, (length(kgrid.grid), fdlr.size))
     delta_0_low, delta_0_high, delta_low, delta_high = Separation(delta_0, delta, kgrid, fdlr)
+    F = zeros(Float64, (length(kgrid.grid), fdlr.size))
     while(n<NN && err>rtol)
         F=calcF(delta_0, delta, fdlr, kgrid)
         n=n+1
@@ -221,7 +230,7 @@ function Implicit_Renorm(kernal, kernal_bare, kgrid, qgrids, fdlr )
     open(filename, "w") do io
         @printf(io, "%32.17g\n", lamu)
     end
-    return delta_0, delta
+    return delta_0, delta, F
 end
 
 # function Explicit_Solver(kgrid, qgrids, fdlr,fdlr2, bdlr )
@@ -438,6 +447,7 @@ end
 
 
 if abspath(PROGRAM_FILE) == @__FILE__
+    println("rs=$rs, β=$β, kF=$kF, EF=$EF, mass2=$mass2")
     fdlr = DLR.DLRGrid(:acorr, 100EF, β, 1e-10)
     bdlr = DLR.DLRGrid(:corr, 100EF, β, 1e-10) 
     ########## non-uniform kgrid #############
@@ -466,41 +476,81 @@ if abspath(PROGRAM_FILE) == @__FILE__
 
 
 
-    Δ0_final, Δ_final = Implicit_Renorm(kernal, kernal_bare,  kgrid, qgrids, fdlr)
+    Δ0_final, Δ_final, F = Implicit_Renorm(kernal, kernal_bare,  kgrid, qgrids, fdlr)
     #Δ0_final, Δ_final = Explicit_Solver( kgrid, qgrids, fdlr, fdlr2, bdlr)
     #Δ0_final, Δ_final = Explicit_Solver_inherit( kgrid, qgrids, fdlr, fdlr2, bdlr)
     Δ_freq = DLR.tau2matfreq(:acorr, Δ_final, fdlr, fdlr.n, axis=2)
-    filename = "./delta_$(WID).dat"
+    F_τ = DLR.tau2dlr(:acorr, F, fdlr, axis=2)
+    F_τ = real.(DLR.dlr2tau(:acorr, F_τ, fdlr, extT_grid.grid , axis=2))
+    #F_τ = real(DLR.matfreq2tau(:acorr, F_freq, fdlr, extT_grid.grid, axis=2))
+    println("F_τ_max:",maximum(F_τ))
+    F_ext = zeros(Float64, (length(extK_grid.grid), length(extT_grid.grid)))
+
+    outFileName = rundir*"/f_$(WID).dat"
+    f = open(outFileName, "w")
+
+    kpidx = 1
+    head, tail = idx(kpidx, 1, order), idx(kpidx, order, order) 
+    x = @view kgrid.grid[head:tail]
+    w = @view kgrid.wgrid[head:tail]
+    for (ki, k) in enumerate(extK_grid.grid)
+        if k > kgrid.panel[kpidx + 1]
+            # if q is larger than the end of the current panel, move k panel to the next panel
+            while k > kgrid.panel[kpidx + 1]
+                global kpidx += 1
+            end
+            global head, tail = idx(kpidx, 1, order), idx(kpidx, order, order) 
+            global x = @view kgrid.grid[head:tail]
+            global w = @view kgrid.wgrid[head:tail]
+            @assert kpidx <= kgrid.Np
+        end
+        for (τi, τ) in enumerate(extT_grid.grid)
+            fx = @view F_τ[head:tail, τi] # all F in the same kpidx-th K panel
+            F_ext[ki, τi] = barycheb(order, k, fx, w, x) # the interpolation is independent with the panel length
+            #@printf("%32.17g  %32.17g  %32.17g\n",extK_grid[ki] ,extT_grid[τi], F_ext[ki, τi])
+            @printf(f, "%32.17g  %32.17g  %32.17g\n",extK_grid[ki] ,extT_grid[τi], F_ext[ki, τi])
+        end
+    end
+    
+
+
+    outFileName = rundir*"/delta_$(WID).dat"
+    f = open(outFileName, "w")
+    for (ki, k) in enumerate(kgrid.grid)
+        for (ni, n) in enumerate(fdlr.n)
+            @printf(f, "%32.17g  %32.17g  %32.17g\n",kgrid.grid[ki] ,fdlr.n[ni], Δ_freq[ki, ni] + Δ0_final[ki])
+        end
+    end
 
 
 
     #println(fdlr.n, fdlr.n[fdlr.size ÷ 2 + 1])
-    open(filename, "w") do io
-        for r in 1:length(kgrid.grid)
-            @printf(io, "%32.17g  %32.17g  %32.17g\n",kgrid.grid[r] ,Δ0_final[r] ,real(Δ_freq[r, fdlr.size ÷ 2 + 1]))
-        end
-    end
+    # open(filename, "w") do io
+    #     for r in 1:length(kgrid.grid)
+    #         @printf(io, "%32.17g  %32.17g  %32.17g\n",kgrid.grid[r] ,Δ0_final[r] ,real(Δ_freq[r, fdlr.size ÷ 2 + 1]))
+    #     end
+    # end
 
-    cut_f = 1
-    for r in 1:length(kgrid.grid)
-        if kgrid.grid[r] < kF
-            global cut_f = r
-        end
-    end
-    filename = "./delta_$(WID)_freq.dat"
-    open(filename, "w") do io
-        for r in 1:fdlr.size
-            @printf(io, "%32.17g  %32.17g\n",fdlr.n[r],real(Δ_freq[cut_f,r]))
-        end
-    end
-    step = fdlr.size÷16
-    p = plot(kgrid.grid, Δ0_final[:])
-    for i in 1:6
-        global p = plot!(p, kgrid.grid, real(Δ_freq[:, fdlr.size ÷ 2 + 1 + i*step]))
-    end
-    #p = plot!(p, kgrid.grid, F_fine[:, 10])
-    display(p)
-    readline()
+    # cut_f = 1
+    # for r in 1:length(kgrid.grid)
+    #     if kgrid.grid[r] < kF
+    #         global cut_f = r
+    #     end
+    # end
+    # filename = "./delta_$(WID)_freq.dat"
+    # open(filename, "w") do io
+    #     for r in 1:fdlr.size
+    #         @printf(io, "%32.17g  %32.17g\n",fdlr.n[r],real(Δ_freq[cut_f,r]))
+    #     end
+    # end
+    # step = fdlr.size÷16
+    # p = plot(kgrid.grid, Δ0_final[:])
+    # for i in 1:6
+    #     global p = plot!(p, kgrid.grid, real(Δ_freq[:, fdlr.size ÷ 2 + 1 + i*step]))
+    # end
+    # #p = plot!(p, kgrid.grid, F_fine[:, 10])
+    # display(p)
+    # readline()
 
     # F = calcF(Δ0, Δ, fdlr, kgrid)
     # F_freq = DLR.tau2matfreq(:acorr, F, fdlr, fdlr.n, axis=2)
