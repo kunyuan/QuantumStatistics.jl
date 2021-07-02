@@ -57,7 +57,7 @@ struct DLRGrid
         end
         rtolpower = Int(floor(log10(rtol))) # get the biggest n so that rtol>1e-n
         if abs(rtolpower) < 4
-            rtolpower = 4
+            rtolpower = -4
         end
         
         filename = string(@__DIR__, "/basis/$(string(type))/dlr$(Λ)_1e$(rtolpower).dlr")

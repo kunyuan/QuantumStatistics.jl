@@ -220,7 +220,7 @@ mutable struct Angle <: Variable
     data::Vector{Float64}
     λ::Float64
     function Angle(λ=0.5, size=MaxOrder)
-        theta = [π]
+        theta = [π for i = 1:size]
         return new(theta, λ)
     end
 end

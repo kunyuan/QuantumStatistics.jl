@@ -1,5 +1,7 @@
 # We work with Rydberg units, length scale Bohr radius a_0, energy scale: Ry
-using StaticArrays
+module parameter
+
+using StaticArrays, QuantumStatistics
 
 ###### constants ###########
 const WID = 1
@@ -15,10 +17,15 @@ const β = 20.0 / kF^2
 const mass2 = 0.01
 const mom_sep = 0.1
 const channel = 0
-#const Weight = SVector{2,Float64}
-#const Base.abs(w::Weight) = abs(w[1]) + abs(w[2]) # define abs(Weight)
+const Weight = SVector{2,Float64}
+const Base.abs(w::Weight) = abs(w[1]) + abs(w[2]) # define abs(Weight)
 #const INL, OUTL, INR, OUTR = 1, 2, 3, 4
 # const Nf = (D==3) ? 
+const extK_grid = Grid.fermiKUL(kF, 10kF, 0.00001*sqrt(me^2/β/kF^2), 8,8) 
+const extT_grid = Grid.tauUL(β, 0.00001, 8,8)
+
+#println("rs=$rs, β=$β, kF=$kF, EF=$EF, mass2=$mass2")
+
 
 
 ### grid constants ###
@@ -28,5 +35,11 @@ const maxK = 10.0 * kF
 const minK =  0.00001 / (β * kF)
 
 
-println("rs=$rs, β=$β, kF=$kF, EF=$EF, mass2=$mass2")
+#println("rs=$rs, β=$β, kF=$kF, EF=$EF, mass2=$mass2")
+for n in names(@__MODULE__; all=true)
+    if Base.isidentifier(n) && n ∉ (Symbol(@__MODULE__), :eval, :include)
+        @eval export $n
+    end
+end
 
+end

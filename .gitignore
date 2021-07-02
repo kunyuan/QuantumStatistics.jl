@@ -52,6 +52,8 @@ test/test_results
 .DS_Store
 *~
 
+# runtime files
+run/*
 *.dat
 *.txt
 docs/build/
