@@ -4,9 +4,11 @@ using QuantumStatistics, LinearAlgebra, Random, Printf, BenchmarkTools, Interact
 srcdir = "."
 rundir = isempty(ARGS) ? "." : (pwd()*"/"*ARGS[1])
 
-include(rundir*"/parameter.jl")
-include(srcdir*"/eigen.jl")
+push!(LOAD_PATH, rundir)
+using parameter
+println("rs=$rs, β=$β, kF=$kF, EF=$EF, mass2=$mass2")
 
+include(srcdir*"/eigen.jl")
 #
 # G(w,k)G(-w,-k)
 #
@@ -111,7 +113,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
         for (ni, n) in enumerate(fdlr.n)
             np = n # matsubara freqeuncy index for the upper G: (2np+1)π/β
             nn = -n - 1 # matsubara freqeuncy for the upper G: (2nn+1)π/β = -(2np+1)π/β
-            F_freq[ki, ni] = (Δ_freq[ki, ni]) * Spectral.kernelFermiΩ(nn, ω, β) * Spectral.kernelFermiΩ(np, ω, β)
+            #F_freq[ki, ni] = (Δ_freq[ki, ni]) * Spectral.kernelFermiΩ(nn, ω, β) * Spectral.kernelFermiΩ(np, ω, β)
+            F_freq[ki, ni] = (Δ_freq[ki, ni]) * GG(π*(2n+1)/β, k)
             #F[ki, ni] = (Δ[ki, ni]) * Spectral.kernelFermiΩ(nn, ω, β) * Spectral.kernelFermiΩ(np, ω, β)
             
         end
@@ -145,7 +148,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
         for (τi, τ) in enumerate(extT_grid.grid)
             fx = @view F_τ[head:tail, τi] # all F in the same kpidx-th K panel
             F_ext[ki, τi] = barycheb(order, k, fx, w, x) # the interpolation is independent with the panel length
-            @printf("%32.17g  %32.17g  %32.17g\n",extK_grid[ki] ,extT_grid[τi], F_ext[ki, τi])
+            #@printf("%32.17g  %32.17g  %32.17g\n",extK_grid[ki] ,extT_grid[τi], F_ext[ki, τi])
             @printf(f, "%32.17g  %32.17g  %32.17g\n",extK_grid[ki] ,extT_grid[τi], F_ext[ki, τi])
         end
     end

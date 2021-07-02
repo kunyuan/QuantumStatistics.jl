@@ -3,7 +3,9 @@ using QuantumStatistics
 using Printf
 # using Gaston
 using Plots
-include("parameter.jl")
+
+push!(LOAD_PATH, pwd())
+using parameter
 include("grid.jl")
 
 

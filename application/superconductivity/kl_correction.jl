@@ -1,14 +1,17 @@
 # calculate (d) diagram in Kohn-Luttinger's paper as kernel of gap-equation at kF on dlr tau grids
 
-using QuantumStatistics, LinearAlgebra, Random, Printf, BenchmarkTools, InteractiveUtils, Parameters, Dierckx
-# using ProfileView
+using QuantumStatistics, LinearAlgebra, Random, Printf, BenchmarkTools, InteractiveUtils, Parameters, Dierckx, StaticArrays
+using DelimitedFiles
 using PyCall
 const Steps = 1e7
 
 srcdir = "."
 rundir = isempty(ARGS) ? "." : (pwd()*"/"*ARGS[1])
 
-include(rundir*"/parameter.jl")
+push!(LOAD_PATH, rundir)
+using parameter
+println("rs=$rs, β=$β, kF=$kF, EF=$EF, mass2=$mass2")
+
 include(srcdir*"/../electron_gas/RPA.jl")
 
 const ℓ=0
@@ -82,52 +85,58 @@ end
 # gap-function
 #
 
-#dataFileName = "/home/xc82a/data_from_t/s_largeT/delta_0.dat"
-# dataFileName = "/home/xc82a/data_from_t/s/delta_96.dat"
+dataFileName = rundir*"/delta.dat"
 
-# f = open(dataFileName, "r")
+f = open(dataFileName, "r")
 
-# MomBin = map(x->parse(Float64,x),split(readline(f)," ")[1:end-1])
-# FreqBin = map(x->parse(Float64,x),split(readline(f)," ")[1:end-1])
-# data = map(x->parse(Float64,x),split(readline(f)," ")[1:end-1])
+MomBin = map(x->parse(Float64,x),split(readline(f)," ")[1:end-1])
+FreqBin = map(x->parse(Float64,x),split(readline(f)," ")[1:end-1])
+data = map(x->parse(Float64,x),split(readline(f)," ")[1:end-1])
 
-# data = reshape(data,(length(MomBin),length(FreqBin)))
+data = reshape(data,(length(MomBin),length(FreqBin)))
 
-# delta_spl = Spline2D(MomBin,FreqBin,data;kx=1,ky=1,s=0.0)
+delta_spl = Spline2D(MomBin,FreqBin,data;kx=1,ky=1,s=0.0)
 
-# const lamu = 0.2229769140136642 #beta250, rs4
-# #const lamu = 0.002398499678459926 #beta25, rs2
-# #const lamu = 0.02231536377399141 #beta250,rs2
+const lamu = 0.2049458542291443 #beta200, rs4
+#const lamu = 0.2229769140136642 #beta250, rs4
+#const lamu = 0.002398499678459926 #beta25, rs2
+#const lamu = 0.02231536377399141 #beta250,rs2
 
-# const freq_cut = 0.25
-# const actual_cut_index = findmin([(freq-freq_cut<0 ? FreqBin[end] : freq ) for freq in FreqBin ])[2]-1
+const freq_cut = 0.25
+const actual_cut_index = findmin([(freq-freq_cut<0 ? FreqBin[end] : freq ) for freq in FreqBin ])[2]-1
 
-# function Δ(ω, k, isNormed = false)
-#     if ω<0
-#         ω=-ω
-#     end
-#     cut = freq_cut
-# #   cut = FreqBin[actual_cut_index]
-#     if ω/kF^2<=cut && isNormed
-#         return delta_spl(k/kF,ω/kF^2)*lamu
-#     else
-#         return delta_spl(k/kF,ω/kF^2)
+function Δ(ω, k, isNormed = false)
+    if ω<0
+        ω=-ω
+    end
+    cut = freq_cut
+    #   cut = FreqBin[actual_cut_index]
+    if ω/kF^2<=cut && isNormed
+        return delta_spl(k/kF,ω/kF^2)*lamu
+    else
+        return delta_spl(k/kF,ω/kF^2)
 
-#     end
-# end
-
-# println(delta_spl(0.999, 0.001))
-
-function Δ(ω, k, isNormed=false)
-    return 1.0
+    end
 end
+
+println(delta_spl(0.999, 0.001))
+
+dataFileName = rundir*"/f.dat"
+
+f = open(dataFileName, "r")
+f_data = readdlm(f)
+f_data = reshape(f_data[:,3], (length(extT_grid.grid), length(extK_grid.grid)))
+println("F_max:",maximum(f_data))
 
 function F(k, t)
     if t<0
         t=-t
     end
-    return GG_τ(k, t)
+
+    return Grid.linear2D(f_data, extT_grid, extK_grid, t, k)
 end
+
+println(F(kF, 0.1), "\t", F(kF, β-0.1))
 
 #ExtFreqBin = FreqBin[1:9]*kF^2
 half = Base.floor(Int, length(dlr.n)/2)
@@ -226,7 +235,7 @@ function integrand(config)
         W1 = interaction(q-k1-k2, 0.0, t2)
         W2 = interaction(q, (t1),(t3) )
 
-        factor = -1.0/(2π)^3/(2π)^2/β * legendre(cos(θ))*sin(θ)/2.0 * kgrid[Ext2[1]]*K2[1]
+        factor = -1.0/(2π)^3/(2π)^2 * legendre(cos(θ))*sin(θ)/2.0 * kgrid[Ext2[1]]*K2[1]
 
         r_r = W1[2]*W2[2]*g1*g2* factor*exp(im*ωout * t1 ) * F(K2[1], (t2-t3))
         s_r = W1[1]*W2[2]*g1*g4* factor*exp(im*ωout * t1 ) * F(K2[1], (-t3))
@@ -281,7 +290,7 @@ function integrand(config)
 
         W1 = interaction(k1-k2, 0, t1)
 
-        factor =  -1.0/(2π)^2/β * legendre(cos(θ))*sin(θ)/2.0 * kgrid[Ext2[1]]*K2[1]
+        factor =  -1.0/(2π)^2 * legendre(cos(θ))*sin(θ)/2.0 * kgrid[Ext2[1]]*K2[1]
         r_0 = W1[2] * factor * exp(im*ωout * t1 ) * F(K2[1],-t1)
         s_0 = W1[1] * factor * F(K2[1],0.0)
 
@@ -311,8 +320,8 @@ function run(steps)
     K2 = MonteCarlo.Tau(MomBin[end]*kF, kF)
 #    N2 = MonteCarlo.Discrete(0, floor(Int, FreqBin[end]/(2π/β*EF)-0.5))
 
-#    dof = [[1,0,1,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
-    dof = [[1,0,1,1,1,1],[3,1,1,1,1,1]] # degrees of freedom of the normalization diagram and the bubble
+    dof = [[1,0,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
+#    dof = [[1,0,1,1,1,1],[3,1,1,1,1,1]] # degrees of freedom of the normalization diagram and the bubble
 #    dof = [[3,1,1,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
 #    dof = [[3,1,1,1,1,1,1],[1,0,1,1,1,1,1]] # degrees of freedom of the normalization diagram and the bubble
     obs = zeros(Float64,(length(ExtFreqBin),kgrid.size,2))
