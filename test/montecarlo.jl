@@ -82,6 +82,28 @@ function Sphere3(totalstep)
     return avg, err
 end
 
+function Exponential1(totalstep)
+    function integrand(config)
+        X = config.var[1]
+        return exp(-X[1])
+    end
+
+    function measure(config)
+        factor = 1.0 / config.reweight[config.curr]
+        weight = integrand(config)
+        config.observable += weight / abs(weight) * factor
+    end
+
+    K = MonteCarlo.RadialFermiK(1.0, 0.1)
+    dof = [[1, ],] # number of T variable for the normalization and the integrand
+    config = MonteCarlo.Configuration(totalstep, (K,), dof, 0.0)
+    avg, err = MonteCarlo.sample(config, integrand, measure; Nblock=64, print=-1)
+    # avg, err = MonteCarlo.sample(totalstep, (T,), dof, [0.0, ], integrand, measure; Nblock=64, print=-1)
+
+    return avg, err
+end
+
+
 @testset "MonteCarlo Sampler" begin
     totalStep = 1000_000
 
@@ -100,4 +122,8 @@ end
     println("MC integration 3: $(avg[2]) ± $(err[2]) (exact: $(4.0 * π / 3.0 / 8))")
     @test abs(avg[1] - π / 4.0) < 5.0 * err[1]
     @test abs(avg[2] - π / 6.0) < 5.0 * err[2]
+
+    avg, err = Exponential1(totalStep)
+    println("MC integration 4: $avg ± $err (exact: $(1.0))")
+    @test abs(avg - 1.0) < 5.0 * err
 end
