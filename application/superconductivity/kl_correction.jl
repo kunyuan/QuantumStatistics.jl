@@ -3,7 +3,7 @@
 using QuantumStatistics, LinearAlgebra, Random, Printf, BenchmarkTools, InteractiveUtils, Parameters, Dierckx, StaticArrays
 using DelimitedFiles
 using PyCall
-const Steps = 1e8
+const Steps = 1e7
 
 srcdir = "."
 rundir = isempty(ARGS) ? "." : (pwd()*"/"*ARGS[1])
@@ -319,7 +319,7 @@ function run(steps)
     Ext1 = MonteCarlo.Discrete(1, length(ExtFreqBin))
     Ext2 = MonteCarlo.Discrete(1, kgrid.size)
     Theta = MonteCarlo.Angle()
-    K2 = MonteCarlo.Tau(MomBin[end]*kF, kF)
+    K2 = MonteCarlo.RadialFermiK(kF, 0.01kF)
 #    N2 = MonteCarlo.Discrete(0, floor(Int, FreqBin[end]/(2π/β*EF)-0.5))
 
 #    dof = [[1,0,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
