@@ -5,8 +5,14 @@ using Printf
 # using Gaston
 using Plots
 
-push!(LOAD_PATH, pwd())
-using parameter
+srcdir = "."
+rundir = isempty(ARGS) ? "." : (pwd()*"/"*ARGS[1])
+
+if !(@isdefined β)
+    include(rundir*"/parameter.jl")
+    using .parameter
+end
+
 include("grid.jl")
 
 

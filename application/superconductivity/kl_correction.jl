@@ -3,13 +3,16 @@
 using QuantumStatistics, LinearAlgebra, Random, Printf, BenchmarkTools, InteractiveUtils, Parameters, Dierckx, StaticArrays
 using DelimitedFiles
 using PyCall
-const Steps = 1e7
+const Steps = 1e8
 
 srcdir = "."
 rundir = isempty(ARGS) ? "." : (pwd()*"/"*ARGS[1])
 
-push!(LOAD_PATH, rundir)
-using parameter
+if !(@isdefined β)
+    include(rundir*"/parameter.jl")
+    using .parameter
+end
+
 println("rs=$rs, β=$β, kF=$kF, EF=$EF, mass2=$mass2")
 
 include(srcdir*"/../electron_gas/RPA.jl")
@@ -31,7 +34,7 @@ end
 println("legendre(0.5)=",legendre(0.5))
 
 dlr = DLR.DLRGrid(:fermi, 10*EF,β, 1e-2)
-const kgrid = Grid.fermiKUL(kF, 9kF, 0.001kF, 2,2) 
+const kgrid = Grid.fermiKUL(kF, 9kF, 0.01kF, 2,3) 
 #const kgrid = Grid.Uniform{Float64, 2}(kF, 1.001kF,[false, false])
 MomBin = kgrid.grid
 
@@ -140,7 +143,7 @@ println(F(kF, 0.1), "\t", F(kF, β-0.1))
 
 #ExtFreqBin = FreqBin[1:9]*kF^2
 half = Base.floor(Int, length(dlr.n)/2)
-ExtFreqBin = [π*(2*dlr.n[i]+1)/β for i in 1:length(dlr.n)][half+1:end]
+ExtFreqBin = [π*(2*dlr.n[i]+1)/β for i in 1:length(dlr.n)][half+1:end-2]
 #ExtFreqBin = [π*(2*dlr.n[i]+1)/β for i in 1:length(dlr.n)]
 
 #
@@ -202,7 +205,6 @@ end
 
 function integrand(config)
     result = 0.0+0.0im
-    kin, kout = 0.9kF, 1.1kF
 
     if config.curr == 2
         T,K,Ext1,Ext2,Theta,K2 = config.var[1],config.var[2], config.var[3],config.var[4],config.var[5],config.var[6]
@@ -242,11 +244,11 @@ function integrand(config)
         r_s = W1[2]*W2[1]*g2*g3* factor*exp(im*ωout * t1 ) * F(K2[1], (t2-t1))
         s_s = W1[1]*W2[1]*g3*g4* factor*exp(im*ωout * t1 ) * F(K2[1], (-t1))
 
-#        result += (s_s+s_r+r_s+r_r)
+        result += (s_s+s_r+r_s+r_r)* (-1.0)
 
-        # ω1 = (dot(q-k1, q-k1) - kF^2) * β
+        ω1 = (dot(q-k1, q-k1) - kF^2) * β
 
-        # ω2 = (dot(q-k2, q-k2) - kF^2) * β
+        ω2 = (dot(q-k2, q-k2) - kF^2) * β
 
         τ1 = (-t3)/β
         g1 = Spectral.kernelFermiT(τ1, ω1)
@@ -274,7 +276,7 @@ function integrand(config)
         r_s = W1[2]*W2[1]*g3*g6* factor*exp(im*ωout * t1 ) * F(K2[1], (t2-t1))
         s_s = W1[1]*W2[1]*g3*g8* factor*exp(im*ωout * t1 ) * F(K2[1], (-t1))
 
-        result -=  (s_s+s_r+r_s+r_r) * 2.0
+        result +=  (s_s+s_r+r_s+r_r) * (2.0)
 
     # bare interaction
     elseif config.curr==1
@@ -320,8 +322,8 @@ function run(steps)
     K2 = MonteCarlo.Tau(MomBin[end]*kF, kF)
 #    N2 = MonteCarlo.Discrete(0, floor(Int, FreqBin[end]/(2π/β*EF)-0.5))
 
-    dof = [[1,0,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
-#    dof = [[1,0,1,1,1,1],[3,1,1,1,1,1]] # degrees of freedom of the normalization diagram and the bubble
+#    dof = [[1,0,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
+    dof = [[1,0,1,1,1,1],[3,1,1,1,1,1]] # degrees of freedom of the normalization diagram and the bubble
 #    dof = [[3,1,1,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
 #    dof = [[3,1,1,1,1,1,1],[1,0,1,1,1,1,1]] # degrees of freedom of the normalization diagram and the bubble
     obs = zeros(Float64,(length(ExtFreqBin),kgrid.size,2))
@@ -347,7 +349,7 @@ function run(steps)
         norm = sum( abs.(avg[:,:,1]))/sum( abs.(Δ_ext) )
         println("norm=$norm")
         norm = 1.0
-        avg, std = avg/norm, std/norm
+        #avg, std = avg/norm, std/norm
         for i in 1:length(ExtFreqBin)
             for j in 1:kgrid.size
                 @printf("%10.8f\t %10.8f\t %10.8f ± %10.8f \t %10.8f\n",

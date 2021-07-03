@@ -4,8 +4,10 @@ using QuantumStatistics, LinearAlgebra, Random, Printf, BenchmarkTools, Interact
 srcdir = "."
 rundir = isempty(ARGS) ? "." : (pwd()*"/"*ARGS[1])
 
-push!(LOAD_PATH, rundir)
-using parameter
+if !(@isdefined β)
+    include(rundir*"/parameter.jl")
+    using .parameter
+end
 println("rs=$rs, β=$β, kF=$kF, EF=$EF, mass2=$mass2")
 
 include(srcdir*"/eigen.jl")
