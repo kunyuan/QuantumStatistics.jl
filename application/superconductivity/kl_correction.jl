@@ -69,20 +69,20 @@ MomBin = kgrid.grid
 #             kgrid[i]/kF,sigmaR_spl(0.0, kgrid[i]/kF))
 # end
 
-function GG(ωin, k, β=1.0)
-    ω = k^2-kF^2
-    factor = kF^2
-    # ΣR = sigmaR_spl(k/kF, ωin/kF^2)*factor
-    # ΣI = sigmaI_spl(k/kF, ωin/kF^2)*factor
-    ΣR = 0.0#sigmaR_spl( ωin/kF^2,k/kF)*factor
-    ΣI = 0.0#sigmaI_spl( ωin/kF^2,k/kF)*factor
-    return 1.0/((ωin-ΣI) ^2 + (ω+ΣR)^2 )
-end
+# function GG(ωin, k, β=1.0)
+#     ω = k^2-kF^2
+#     factor = kF^2
+#     # ΣR = sigmaR_spl(k/kF, ωin/kF^2)*factor
+#     # ΣI = sigmaI_spl(k/kF, ωin/kF^2)*factor
+#     ΣR = 0.0#sigmaR_spl( ωin/kF^2,k/kF)*factor
+#     ΣI = 0.0#sigmaI_spl( ωin/kF^2,k/kF)*factor
+#     return 1.0/((ωin-ΣI) ^2 + (ω+ΣR)^2 )
+# end
 
-function GG_τ(k, τ)
-    ω = (k^2 / (2me) - EF)
-    return (exp(-ω*τ)-exp(-ω*(β-τ)))/(1+exp(-ω*β))/2.0/ω
-end
+# function GG_τ(k, τ)
+#     ω = (k^2 / (2me) - EF)
+#     return (exp(-ω*τ)-exp(-ω*(β-τ)))/(1+exp(-ω*β))/2.0/ω
+# end
 
 #
 # gap-function
@@ -112,6 +112,9 @@ function Δ(ω, k, isNormed = false)
     if ω<0
         ω=-ω
     end
+    if k>MomBin[end]*kF
+        return 0.0
+    end
     cut = freq_cut
     #   cut = FreqBin[actual_cut_index]
     if ω/kF^2<=cut && isNormed
@@ -134,6 +137,9 @@ println("F_max:",maximum(f_data))
 function F(k, t)
     if t<0
         t=-t
+    end
+    if k>extK_grid.grid[end]
+        return 0.0
     end
 
     return Grid.linear2D(f_data, extT_grid, extK_grid, t, k)
@@ -319,11 +325,12 @@ function run(steps)
     Ext1 = MonteCarlo.Discrete(1, length(ExtFreqBin))
     Ext2 = MonteCarlo.Discrete(1, kgrid.size)
     Theta = MonteCarlo.Angle()
+#    K2 = MonteCarlo.Tau(MomBin[end]*kF, kF)
     K2 = MonteCarlo.RadialFermiK(kF, 0.01kF)
 #    N2 = MonteCarlo.Discrete(0, floor(Int, FreqBin[end]/(2π/β*EF)-0.5))
 
-#    dof = [[1,0,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
-    dof = [[1,0,1,1,1,1],[3,1,1,1,1,1]] # degrees of freedom of the normalization diagram and the bubble
+    dof = [[1,0,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
+#    dof = [[1,0,1,1,1,1],[3,1,1,1,1,1]] # degrees of freedom of the normalization diagram and the bubble
 #    dof = [[3,1,1,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
 #    dof = [[3,1,1,1,1,1,1],[1,0,1,1,1,1,1]] # degrees of freedom of the normalization diagram and the bubble
     obs = zeros(Float64,(length(ExtFreqBin),kgrid.size,2))
