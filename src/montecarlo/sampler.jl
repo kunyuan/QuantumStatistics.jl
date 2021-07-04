@@ -393,28 +393,28 @@ end
 
 
 @inline function RFK_Weight(K::RadialFermiK, k)
-    norm = atan(K.kF/K.δk)/K.δk+π/2.0/K.δk
-    return 1.0/((k-K.kF)^2+K.δk^2)/norm
-    # if 0.0 <= k < K.kF-K.δk
-    #     return 1.0/3.0 /(K.kF-K.δk)
-    # elseif k < K.kF+K.δk
-    #     return 2.0*K.δk /(3π) /( (k-K.kF)^2 + K.δk^2) 
-    # else
-    #     return 1.0/3/(K.kF+K.δk)*exp(1-k/(K.kF+K.δk))
-    # end
-    # return 0.0
+    # norm = atan(K.kF/K.δk)/K.δk+π/2.0/K.δk
+    # return 1.0/((k-K.kF)^2+K.δk^2)/norm
+    if 0.0 <= k < K.kF-K.δk
+        return 1.0/3.0 /(K.kF-K.δk)
+    elseif k < K.kF+K.δk
+        return 2.0*K.δk /(3π) /( (k-K.kF)^2 + K.δk^2) 
+    else
+        return 1.0/3/(K.kF+K.δk)*exp(1-k/(K.kF+K.δk))
+    end
+    return 0.0
 end
 
 @inline function RFK_Propose(K::RadialFermiK, x, y)
-    norm = atan(K.kF/K.δk)/K.δk+π/2.0/K.δk
-    return K.kF-K.δk*tan(atan(K.kF/K.δk)-K.δk*x*norm )
-    # if x < 1.0/3
-    #     return y*(K.kF-K.δk)
-    # elseif x < 2.0/3
-    #     return K.kF + K.δk * tan(π*(2.0*y-1)/4.0)
-    # else
-    #     return (K.kF+K.δk)*(1-log1p(-y))
-    # end
+    # norm = atan(K.kF/K.δk)/K.δk+π/2.0/K.δk
+    # return K.kF-K.δk*tan(atan(K.kF/K.δk)-K.δk*x*norm )
+    if x < 1.0/3
+        return y*(K.kF-K.δk)
+    elseif x < 2.0/3
+        return K.kF + K.δk * tan(π*(2.0*y-1)/4.0)
+    else
+        return (K.kF+K.δk)*(1-log1p(-y))
+    end
 end
 
 """
@@ -467,30 +467,30 @@ Propose to shift an existing k to a new k, both in [0, +inf), return proposal pr
     (idx >= length(K.data) - 1) && error("$idx overflow!")
     K[end] = K[idx]
     rng = config.rng
-    K[idx] = RFK_Propose(K, rand(rng), rand(rng))
-    return RFK_Weight(K, K[end])/RFK_Weight(K, K[idx])
-    # x = rand(rng)
-    # if x < 1.0 / 3
-    #     K[idx] = K[idx] + 2 * K.δk * (rand(rng) - 0.5)
-    #     if K[idx] < 0.0
-    #         K[idx] = -K[idx]
-    #     end
-    #     return RFK_Weight(K, K[end])/RFK_Weight(K, K[idx])
-    # elseif x < 2.0 / 3
-    #     if K[idx] < K.kF-K.δk
-    #         y = (K.kF-K.δk-K[idx])/(K.kF-K.δk)
-    #         K[idx] = RFK_Propose(K, 1.0, y)
-    #     elseif K[idx] < K.kF+K.δk
-    #         K[idx] = 2*K.kF - K[idx]
-    #     else
-    #         y = exp( 1 - K[idx]/(K.kF+K.δk))
-    #         K[idx] = RFK_Propose(K, 0.0, y)
-    #     end
-    #     return RFK_Weight(K, K[end])/RFK_Weight(K, K[idx])
-    # else
-    #     K[idx] = RFK_Propose(K, rand(rng), rand(rng))
-    #     return RFK_Weight(K, K[end])/RFK_Weight(K, K[idx])
-    # end
+    # K[idx] = RFK_Propose(K, rand(rng), rand(rng))
+    # return RFK_Weight(K, K[end])/RFK_Weight(K, K[idx])
+    x = rand(rng)
+    if x < 1.0 / 3
+        K[idx] = K[idx] + 2 * K.δk * (rand(rng) - 0.5)
+        if K[idx] < 0.0
+            K[idx] = -K[idx]
+        end
+        return 1.0
+    elseif x < 2.0 / 3
+        if K[idx] < K.kF-K.δk
+            y = (K.kF-K.δk-K[idx])/(K.kF-K.δk)
+            K[idx] = RFK_Propose(K, 1.0, y)
+        elseif K[idx] < K.kF+K.δk
+            K[idx] = 2*K.kF - K[idx]
+        else
+            y = exp( 1 - K[idx]/(K.kF+K.δk))
+            K[idx] = RFK_Propose(K, 0.0, y)
+        end
+        return RFK_Weight(K, K[end])/RFK_Weight(K, K[idx])
+    else
+        K[idx] = RFK_Propose(K, rand(rng), rand(rng))
+        return RFK_Weight(K, K[end])/RFK_Weight(K, K[idx])
+    end
 
 end
 
