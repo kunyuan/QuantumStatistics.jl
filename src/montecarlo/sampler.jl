@@ -466,6 +466,10 @@ Propose to shift an existing k to a new k, both in [0, +inf), return proposal pr
     x = rand(rng)
     if x < 1.0 / 3
         K[idx] = K[idx] + 2 * K.δk * (rand(rng) - 0.5)
+        if K[idx] < 0.0
+            K[idx] = -K[idx]
+        end
+        return RFK_Weight(K, K[end])/RFK_Weight(K, K[idx])
     elseif x < 2.0 / 3
         if K[idx] < K.kF-K.δk
             y = (K.kF-K.δk-K[idx])/(K.kF-K.δk)
@@ -476,15 +480,12 @@ Propose to shift an existing k to a new k, both in [0, +inf), return proposal pr
             y = exp( 1 - K[idx]/(K.kF+K.δk))
             K[idx] = RFK_Propose(K, 0.0, y)
         end
+        return RFK_Weight(K, K[end])/RFK_Weight(K, K[idx])
     else
         K[idx] = RFK_Propose(K, rand(rng), rand(rng))
+        return RFK_Weight(K, K[end])/RFK_Weight(K, K[idx])
     end
 
-    if K[idx] < 0.0
-        K[idx] = -K[idx]
-    end
-
-    return RFK_Weight(K, K[idx])/RFK_Weight(K, K[end])
 end
 
 @inline function shiftRollback!(K::RadialFermiK, idx::Int, config)

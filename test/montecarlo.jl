@@ -94,7 +94,7 @@ function Exponential1(totalstep)
         config.observable += weight / abs(weight) * factor
     end
 
-    K = MonteCarlo.RadialFermiK(1.0, 0.1)
+    K = MonteCarlo.RadialFermiK(1.0, 0.01)
     dof = [[1, ],] # number of T variable for the normalization and the integrand
     config = MonteCarlo.Configuration(totalstep, (K,), dof, 0.0)
     avg, err = MonteCarlo.sample(config, integrand, measure; Nblock=64, print=-1)
@@ -123,7 +123,7 @@ end
     @test abs(avg[1] - π / 4.0) < 5.0 * err[1]
     @test abs(avg[2] - π / 6.0) < 5.0 * err[2]
 
-    avg, err = Exponential1(totalStep)
+    avg, err = Exponential1(totalStep*10)
     println("MC integration 4: $avg ± $err (exact: $(1.0))")
     @test abs(avg - 1.0) < 5.0 * err
 end
