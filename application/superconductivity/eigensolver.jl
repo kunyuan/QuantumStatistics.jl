@@ -175,7 +175,7 @@ function Implicit_Renorm(kernal, kernal_bare, kgrid, qgrids, fdlr )
         F=calcF(delta_0, delta, fdlr, kgrid)
         n=n+1
         delta_0_new, delta_new =  calcΔ(F, kernal, kernal_bare, fdlr , kgrid, qgrids)./(-4*π*π)
-        delta_new = real(DLR.tau2matfreq(:acorr, delta_new, fdlr, fdlr.n, axis=2))        
+        #delta_new = real(DLR.tau2matfreq(:acorr, delta_new, fdlr, fdlr.n, axis=2))        
         delta_0_low_new, delta_0_high_new, delta_low_new, delta_high_new = Separation(delta_0_new, delta_new, kgrid, fdlr)
         if(Looptype==0)
             accm=accm+1
@@ -319,15 +319,15 @@ function Explicit_Solver(kernal, kernal_bare, kgrid, qgrids, fdlr, bdlr )
     #Separate Delta
    
     while(n<NN)
-        delta = real(DLR.tau2matfreq(:acorr, delta, fdlr, fdlr.n, axis=2))        
+        #delta = real(DLR.tau2matfreq(:acorr, delta, fdlr, fdlr.n, axis=2))        
         F=calcF(delta_0, delta, fdlr, kgrid)
         n=n+1
         delta_0_new, delta_new =  calcΔ(F, kernal, kernal_bare, fdlr , kgrid, qgrids)./(-4*π*π)
         #delta_0_low_new, delta_0_high_new, delta_low_new, delta_high_new = Separation(delta_0_new, delta_new, kgrid, fdlr)
-        lamu = dot(delta_0_new, delta_0)
+        lamu = dot(delta_new, delta)
         delta_0_new = delta_0_new+shift*delta_0
         delta_new = delta_new+shift*delta
-        modulus = sqrt(dot(delta_0_new, delta_0_new))
+        modulus = sqrt(dot(delta_new, delta_new))
         delta_0 = delta_0_new ./ modulus
         delta = delta_new ./ modulus
         err=abs(lamu-lamu0)
@@ -483,8 +483,8 @@ end
 
 if abspath(PROGRAM_FILE) == @__FILE__
     println("rs=$rs, β=$β, kF=$kF, EF=$EF, mass2=$mass2")
-    fdlr = DLR.DLRGrid(:acorr, 100EF, β, 1e-12)
-    bdlr = DLR.DLRGrid(:corr, 100EF, β, 1e-12) 
+    fdlr = DLR.DLRGrid(:acorr, 100EF, β, 1e-10)
+    bdlr = DLR.DLRGrid(:corr, 100EF, β, 1e-10) 
     ########## non-uniform kgrid #############
     # Nk = 16
     # order = 8
@@ -502,8 +502,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
 
     #kernal = dH1_freq(kgrid, qgrids, bdlr, fdlr)
     #kernal = dH1_tau(kgrid, qgrids, fdlr)
-    #kernal_bare, kernal_freq = legendre_dc(bdlr, kgrid, qgrids, kpanel_bose, 2*order)
-    kernal_bare, kernal_freq = dH1_freq(kgrid, qgrids, bdlr, fdlr)
+    kernal_bare, kernal_freq = legendre_dc(bdlr, kgrid, qgrids, kpanel_bose, 2*order)
+    #kernal_bare, kernal_freq = dH1_freq(kgrid, qgrids, bdlr, fdlr)
     kernal = real(DLR.matfreq2tau(:corr, kernal_freq, bdlr, fdlr.τ, axis=3))
     println(typeof(kernal))
     #err test section
@@ -513,8 +513,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
 
 
 
-    Δ0_final, Δ_final, F = Implicit_Renorm(kernal, kernal_bare,  kgrid, qgrids, fdlr)
-    #Δ0_final, Δ_final, F = Explicit_Solver(kernal, kernal_bare, kgrid, qgrids, fdlr, bdlr)
+    #Δ0_final, Δ_final, F = Implicit_Renorm(kernal, kernal_bare,  kgrid, qgrids, fdlr)
+    Δ0_final, Δ_final, F = Explicit_Solver(kernal, kernal_bare, kgrid, qgrids, fdlr, bdlr)
     #Δ0_final, Δ_final = Explicit_Solver_inherit( kgrid, qgrids, fdlr, fdlr2, bdlr)
     Δ_freq = DLR.tau2matfreq(:acorr, Δ_final, fdlr, fdlr.n, axis=2)
     F_τ = DLR.tau2dlr(:acorr, F, fdlr, axis=2)

@@ -8,12 +8,13 @@ const WID = 1
 const me = 0.5  # electron mass
 const dim = 3    # dimension (D=2 or 3, doesn't work for other D!!!)
 const spin = 2  # number of spins
+const EPS = 1e-11
 
 const rs = 3.0
 const e0 = sqrt(rs*2.0/(9π/4.0)^(1.0/3))  #sqrt(2) electric charge
 const kF = 1.0  #(dim == 3) ? (9π / (2spin))^(1 / 3) / rs : sqrt(4 / spin) / rs
 const EF = 1.0     #kF^2 / (2me)
-const β = 1000 / kF^2
+const β = 5000 / kF^2
 const mass2 = 0.0
 const mom_sep = 0.1
 const channel = 0
@@ -32,7 +33,7 @@ const extT_grid = Grid.tauUL(β, 0.00001, 8,8)
 const Nk = 16
 const order = 8
 const maxK = 10.0 * kF
-const minK =  0.00001 / (β * kF)
+const minK =  0.0000001 #/ (β * kF)
 
 
 #println("rs=$rs, β=$β, kF=$kF, EF=$EF, mass2=$mass2")

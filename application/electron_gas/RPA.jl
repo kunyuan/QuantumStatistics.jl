@@ -55,19 +55,48 @@ function dWRPA_analytic(vqinv, qgrid, τgrid, kF, β, spin, mass)
         for (qi, q) in enumerate(qgrid)
             kernal = 0.0
             me = mass
-            if abs(q) > 1.0e-8
+            if abs(q) > EPS 
                 x = q/2/kF
                 ω_n = 2*π*n/β
                 y = me*ω_n/q/kF
-                #Π = me*kF/2/π^2*(1 + (1 -x^2 + y^2)*log(((1+x)^2+y^2)/((1-x)^2+y^2))/4/x - y*atan( 2*y/(y^2+x^2-1) ))
-                Π = me*kF/2/π^2*(1 + (1 -x^2 + y^2)*log1p(4*x/((1-x)^2+y^2))/4/x - y*(atan( 2*y/(y^2+x^2-1) ) ))
+               
+               
+                if n == 0
+                    if abs(q - 2*kF) > EPS
+                        Π = me*kF/2/π^2*(1 + (1 -x^2)*log1p(4*x/((1-x)^2))/4/x)
+                    else
+                        Π = me*kF/2/π^2
+                    end
+               
+                else
+                    if abs(q - 2*kF) > EPS
+                        theta = atan( 2*y/(y^2+x^2-1) )
+                        if theta < 0
+                            theta = theta + π
+                        end
+                        @assert theta >= 0 && theta<= π
+                        Π = me*kF/2/π^2*(1 + (1 -x^2 + y^2)*log1p(4*x/((1-x)^2+y^2))/4/x - y*theta)                       
+                    else
+                        theta = atan( 2/y )
+                        if theta < 0
+                            theta = theta + π
+                        end
+                        @assert theta >= 0 && theta<= π
+                        Π = me*kF/2/π^2*(1 + y^2*log1p(4/y^2)/4 - y*theta)                       
+                    end
+                    
+                  
+                end
                 kernal =  -Π/( vqinv[qi]  + Π )
-                #kernal = Π2
+                #kernal = -4*π*g/q^2* Π/( q^2/4/π/g  + Π )
+                #kernal = Π
                 #println("test_RPA: $(Π)")
                 #println("test_RPA: $(Π2)")
             else
                 kernal = 0
+                
             end
+           
 
             dW0norm[qi, ni] = kernal
         end

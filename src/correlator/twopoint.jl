@@ -104,12 +104,12 @@ Compute the polarization function of free electrons at a given frequency. Relati
         end
         ω = 2π * n / β
         ϵ = β * (k^2 - kF^2) / (2m)
-        if n == 0
-            p =  phase * fermiDirac(ϵ) * m / k / q * log1p(-8 * k * q / (q + 2k)^2 ) * spin
-        else
-            p = phase * fermiDirac(ϵ) * m / k / q * log1p(-8 * q^3 * k / ((q^2 + 2k * q)^2 + 4m^2 * ω^2)) * spin
-        end
-
+        # if n == 0
+        #     p =  phase * fermiDirac(ϵ) * m / k / q * log1p(-8 * k * q / (q + 2k)^2 ) * spin
+        # else
+        #     p = phase * fermiDirac(ϵ) * m / k / q * log1p(-8 * q^3 * k / ((q^2 + 2k * q)^2 + 4m^2 * ω^2)) * spin
+        # end
+        p = phase * fermiDirac(ϵ) * m / k / q * log(((q^2 - 2k * q)^2 + 4m^2 * ω^2) / ((q^2 + 2k * q)^2 + 4m^2 * ω^2)) * spin
         if isnan(p)
             println("warning: integrand at ω=$ω, q=$q, k=$k is NaN!")
         end

@@ -51,8 +51,8 @@ end
 
 function build_int(k, q, kpanel_bose, int_order)
     #println(kbose_grid.panel)
-    if abs(k-q) <  1e-12
-        kmin = 1e-12
+    if abs(k-q) <  EPS
+        kmin = EPS
     else
         kmin = abs(k-q)
     end
@@ -78,7 +78,7 @@ function legendre_dc(bdlr, kgrid, qgrids, kpanel_bose, int_order)
     for (ki, k) in enumerate(kgrid.grid)
         for (pi, p) in enumerate(qgrids[ki].grid)
             for (ni, n) in enumerate(bdlr.n)
-                if abs(k - p) > 1.0e-12
+                if abs(k - p) > EPS
                     grid_int = build_int(k, p ,kpanel_bose, int_order)
                     kernal_bare[ki,pi], kernal[ki,pi,ni] = Composite_int(k, p, n, grid_int)
                     @assert isfinite(kernal[ki,pi,ni]) "fail kernal at $ki,$pi,$ni, with $(kernal[ki,pi,ni])"
@@ -103,8 +103,8 @@ function Composite_int(k, p, n, grid_int)
             legendre_x = sign(legendre_x)*1
         end
         wq = grid_int.wgrid[qi]
-        #sum += q*Pl(legendre_x, channel)*RPA(q, n) * wq
-        sum += q*Pl(legendre_x, channel)*FT_RPA(q, n) * wq
+        sum += Pl(legendre_x, channel)*4*π*g/q*RPA(q, n) * wq
+        #sum += q*Pl(legendre_x, channel)*FT_RPA(q, n) * wq
         #sum += q*Pl(legendre_x, channel)*dH1_bose(q, n) * wq
         sum_bare += Pl(legendre_x, channel)*4*π*g/q * wq
     end
@@ -123,7 +123,7 @@ calculate the F function in τ-k representation
 - fdlr::DLRGrid: DLR Grid that contains the imaginary-time grid
 """
 function calcF(Δ0, Δ, fdlr, k::CompositeGrid)
-    #Δ = DLR.tau2matfreq(:acorr, Δ, fdlr, fdlr.n, axis=2)
+    Δ = DLR.tau2matfreq(:acorr, Δ, fdlr, fdlr.n, axis=2)
     #F = zeros(ComplexF64, (length(k.grid), fdlr.size))
     F = zeros(ComplexF64, (length(k.grid), fdlr.size))
 
@@ -155,7 +155,7 @@ end
 function dH1(k, p, τ)
     g = e0^2
     gh = sqrt(g)
-    if abs(k - p) > 1.0e-12
+    if abs(k - p) > EPS
         return -2π * gh^3 * log((abs(k - p) + gh) / (abs(k - p))) * (exp(-gh * τ) + exp(-gh * (β - τ))) / (1 - exp(-gh * β))
         # return -2π * gh^3 * (log((abs(k - p) + gh))) * (exp(-gh * τ) + exp(-gh * (β - τ))) / (1 - exp(-gh * β))
     else
@@ -170,13 +170,13 @@ function dH1_freq(kgrid, qgrids, bdlr, fdlr)
 
     for (ki, k) in enumerate(kgrid.grid)
         for (pi, p) in enumerate(qgrids[ki].grid)
-            if abs(k - p) > 1.0e-12
+            if abs(k - p) > EPS
                 kernal_bare[ki,pi] = bare(k, p)
             else
                 kernal_bare[ki,pi] = 0
             end
             for (ni,n) in enumerate(bdlr.n)
-                if abs(k - p) > 1.0e-12
+                if abs(k - p) > EPS
                     ω_n = 2*π*n/β
                     kernal[ki,pi,ni] = -2*π*g^2/(ω_n^2+g)*( log((k+p)^2/(k-p)^2) - log(((k + p)^2 + ω_n^2 + g) / ((k - p)^2 + ω_n^2 + g)) )
                 else
@@ -196,7 +196,7 @@ end
 function dH1_bose(q, n)
     g = e0^2
     kernal = 0.0
-    if abs(q) > 1.0e-12
+    if abs(q) > EPS
         ω_n = 2*π*n/β
         kernal = -4*π*g^2/(q^2+ω_n^2+g)/q^2
     else
@@ -217,7 +217,7 @@ function dH1_tau(kgrid, qgrids, fdlr)
     for (ki, k) in enumerate(kgrid.grid)
         for (pi, p) in enumerate(qgrids[ki].grid)
             for (τi, τ) in enumerate(fdlr.τ)
-                if abs(k - p) > 1.0e-12
+                if abs(k - p) > EPS
                    
                     kernal[ki,pi,τi] = dH1(k, p, τ)
                 else
@@ -235,16 +235,37 @@ end
 function RPA(q, n)
     g = e0^2
     kernal = 0.0
-    if abs(q) > 1.0e-12
+    if abs(q) > EPS 
         x = q/2/kF
         ω_n = 2*π*n/β
         y = me*ω_n/q/kF
-        #Π = me*kF/2/π^2*(1 + (1 -x^2 + y^2)*log(((1+x)^2+y^2)/((1-x)^2+y^2))/4/x - y*atan( 2*y/(y^2+x^2-1) ))
-        Π = me*kF/2/π^2*(1 + (1 -x^2 + y^2)*log1p(4*x/((1-x)^2+y^2))/4/x - y*(atan( 2*y/(y^2+x^2-1) ) ))
-        kernal = -4*π*g/q^2* Π/( q^2/4/π/g  + Π )
-        #kernal = Π2
-        #println("test_RPA: $(Π)")
-        #println("test_RPA: $(Π2)")
+        
+        
+        if n == 0
+            if abs(q - 2*kF) > EPS
+                Π = me*kF/2/π^2*(1 + (1 -x^2)*log1p(4*x/((1-x)^2))/4/x)
+            else
+                Π = me*kF/2/π^2
+            end
+            
+        else
+            if abs(q - 2*kF) > EPS
+                theta = atan( 2*y/(y^2+x^2-1) )
+                if theta < 0
+                    theta = theta + π
+                end
+                @assert theta >= 0 && theta<= π
+                Π = me*kF/2/π^2*(1 + (1 -x^2 + y^2)*log1p(4*x/((1-x)^2+y^2))/4/x - y*theta)                       
+            else
+                theta = atan( 2/y )
+                if theta < 0
+                    theta = theta + π
+                end
+                @assert theta >= 0 && theta<= π
+                Π = me*kF/2/π^2*(1 + y^2*log1p(4/y^2)/4 - y*theta)                       
+            end 
+        end
+        kernal = - Π/( q^2/4/π/g  + Π )
     else
         kernal = 0
         
@@ -253,30 +274,30 @@ function RPA(q, n)
     return kernal
 end
 
-function FT_RPA(q, n)
-    g = e0^2
-    kernal = 0.0
-    if abs(q) > 1.0e-12
-        x = q/2/kF
-        ω_n = 2*π*n/β
-        y = me*ω_n/q/kF
-        #Π = me*kF/2/π^2*(1 + (1 -x^2 + y^2)*log(((1+x)^2+y^2)/((1-x)^2+y^2))/4/x - y*atan( 2*y/(y^2+x^2-1) ))
-        #Π = me*kF/2/π^2*(1 + (1 -x^2 + y^2)*log1p(4*x/((1-x)^2+y^2))/4/x - y*(atan( 2*y/(y^2+x^2-1) ) ))
-        Π = -TwoPoint.LindhardΩnFiniteTemperature(3, q, n, kF, β, me, spin)[1]
-        #kernal = -4*π*g/q^2* Π/( q^2/4/π/g  + Π )
-        kernal = Π
-        #println("test_RPA: $(Π)")
-        #println("test_RPA: $(Π2)")
-    else
-        kernal = 0
+# function FT_RPA(q, n)
+#     g = e0^2
+#     kernal = 0.0
+#     if abs(q) > EPS
+#         x = q/2/kF
+#         ω_n = 2*π*n/β
+#         y = me*ω_n/q/kF
+#         #Π = me*kF/2/π^2*(1 + (1 -x^2 + y^2)*log(((1+x)^2+y^2)/((1-x)^2+y^2))/4/x - y*atan( 2*y/(y^2+x^2-1) ))
+#         #Π = me*kF/2/π^2*(1 + (1 -x^2 + y^2)*log1p(4*x/((1-x)^2+y^2))/4/x - y*(atan( 2*y/(y^2+x^2-1) ) ))
+#         Π = -TwoPoint.LindhardΩnFiniteTemperature(3, q, n, kF, β, me, spin)[1]
+#         #kernal = -4*π*g/q^2* Π/( q^2/4/π/g  + Π )
+#         kernal = Π
+#         #println("test_RPA: $(Π)")
+#         #println("test_RPA: $(Π2)")
+#     else
+#         kernal = 0
         
-    end
+#     end
 
-    return kernal
-end
+#     return kernal
+# end
 
 function bare(k, p)
-    if abs(k - p) > 1.0e-12
+    if abs(k - p) > EPS
         return 4π * e0^2 * log((k + p)/(abs(k - p)))
         # return 4π * e0^2 * log(k + p)         
     else
@@ -421,8 +442,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
     qgrid2s = [CompositeGrid(QPanel(Nk, kF, maxK, minK, k), 2order, :gaussian) for k in kgrid.grid] # qgrid for each k in kgrid.grid
 
     q_test = 1e-9
-    test_RPA2 = FT_RPA(q_test , 0)
-    test_RPA = FT_RPA(q_test , 1) / q_test^2
+    test_RPA2 = RPA(q_test , 0)
+    test_RPA = RPA(q_test , 1) / q_test^2
     println("$(test_RPA),$(test_RPA2)")
     kernal_bare_int, kernal_int = legendre_dc(bdlr, kgrid, qgrids, kpanel_bose, 2*order)
     
