@@ -3,7 +3,7 @@ using QuantumStatistics
 using LegendrePolynomials
 using Printf
 # using Gaston
-using Plots
+#using Plots
 
 push!(LOAD_PATH, pwd())
 using parameter
@@ -97,7 +97,9 @@ function Composite_int(k, p, n, grid_int)
             legendre_x = sign(legendre_x)*1
         end
         wq = grid_int.wgrid[qi]
-        sum += q*Pl(legendre_x, channel)*RPA(q, n) * wq
+        #sum += q*Pl(legendre_x, channel)*RPA(q, n) * wq
+        sum += q*Pl(legendre_x, channel)*FT_RPA(q, n) * wq
+        #sum += q*Pl(legendre_x, channel)*dH1_bose(q, n) * wq
         sum_bare += Pl(legendre_x, channel)*4*π*g/q * wq
     end
     return sum_bare, sum
@@ -115,7 +117,7 @@ calculate the F function in τ-k representation
 - fdlr::DLRGrid: DLR Grid that contains the imaginary-time grid
 """
 function calcF(Δ0, Δ, fdlr, k::CompositeGrid)
-    Δ = DLR.tau2matfreq(:acorr, Δ, fdlr, fdlr.n, axis=2)
+    #Δ = DLR.tau2matfreq(:acorr, Δ, fdlr, fdlr.n, axis=2)
     #F = zeros(ComplexF64, (length(k.grid), fdlr.size))
     F = zeros(ComplexF64, (length(k.grid), fdlr.size))
 
@@ -245,7 +247,27 @@ function RPA(q, n)
     return kernal
 end
 
+function FT_RPA(q, n)
+    g = e0^2
+    kernal = 0.0
+    if abs(q) > 1.0e-12
+        x = q/2/kF
+        ω_n = 2*π*n/β
+        y = me*ω_n/q/kF
+        #Π = me*kF/2/π^2*(1 + (1 -x^2 + y^2)*log(((1+x)^2+y^2)/((1-x)^2+y^2))/4/x - y*atan( 2*y/(y^2+x^2-1) ))
+        #Π = me*kF/2/π^2*(1 + (1 -x^2 + y^2)*log1p(4*x/((1-x)^2+y^2))/4/x - y*(atan( 2*y/(y^2+x^2-1) ) ))
+        Π = -TwoPoint.LindhardΩnFiniteTemperature(3, q, n, kF, β, me, spin)[1]
+        #kernal = -4*π*g/q^2* Π/( q^2/4/π/g  + Π )
+        kernal = Π
+        #println("test_RPA: $(Π)")
+        #println("test_RPA: $(Π2)")
+    else
+        kernal = 0
+        
+    end
 
+    return kernal
+end
 
 function bare(k, p)
     if abs(k - p) > 1.0e-12
@@ -306,14 +328,14 @@ function calcΔ(F,  kernal, kernal_bare, fdlr, kgrid, qgrids)
                 FF = barycheb(order, q, fx, w, x) # the interpolation is independent with the panel length
 
                 wq = qgrids[ki].wgrid[qi]
-                # Δ[ki, τi] += dH1(k, q, τ) * FF * wq
+                #Δ[ki, τi] += dH1(k, q, τ) * FF * wq
                 Δ[ki, τi] += kernal[ki ,qi ,τi] * FF * wq
                 @assert isfinite(Δ[ki, τi]) "fail Δ at $ki, $τi with $(Δ[ki, τi]), $FF\n $q for $fx\n $x \n $w\n $q < $(kgrid.panel[kpidx + 1])"
 
                 if τi == 1
                     fx_ins = @view F_ins[head:tail] # all F in the same kpidx-th K panel
                     FF = barycheb(order, q, fx_ins, w, x) # the interpolation is independent with the panel length
-                    Δ0[ki] += bare(k, q) * FF * wq
+                    #Δ0[ki] += bare(k, q) * FF * wq
                     Δ0[ki] += kernal_bare[ki, qi] * FF * wq                    
                     @assert isfinite(Δ0[ki]) "fail Δ0 at $ki with $(Δ0[ki])"
                 end
@@ -392,9 +414,10 @@ if abspath(PROGRAM_FILE) == @__FILE__
     
     qgrid2s = [CompositeGrid(QPanel(Nk, kF, maxK, minK, k), 2order, :gaussian) for k in kgrid.grid] # qgrid for each k in kgrid.grid
 
-    q_test = 1e-8
-    test_RPA = RPA(q_test , 1) / q_test^2
-    println("$(test_RPA)")
+    q_test = 1e-9
+    test_RPA2 = FT_RPA(q_test , 0)
+    test_RPA = FT_RPA(q_test , 1) / q_test^2
+    println("$(test_RPA),$(test_RPA2)")
     kernal_bare_int, kernal_int = legendre_dc(bdlr, kgrid, qgrids, kpanel_bose, 2*order)
     
     #kernal_int_double = legendre_dc(bdlr, kgrid, qgrids, kpanel_bose, 4*order)
