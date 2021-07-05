@@ -163,6 +163,7 @@ const vqinv = [(q^2 + mass2) / (4π * e0^2) for q in qgrid.grid]
 # println(τgrid.grid)
 
 const dW0 = dWRPA(vqinv, qgrid.grid, τgrid.grid, kF, β, spin, me) # dynamic part of the effective interaction
+#const dW0 = dWRPA_analytic(vqinv, qgrid.grid, τgrid.grid, kF, β, spin, me) # dynamic part of the effective interaction
 
 const NF = -TwoPoint.LindhardΩnFiniteTemperature(dim, 0.0, 0, kF, β, me, spin)[1]
 println("NF=$NF")
@@ -326,7 +327,7 @@ function run(steps)
     Ext2 = MonteCarlo.Discrete(1, kgrid.size)
     Theta = MonteCarlo.Angle()
 #    K2 = MonteCarlo.Tau(MomBin[end]*kF, kF)
-    K2 = MonteCarlo.RadialFermiK(kF, 0.01kF)
+    K2 = MonteCarlo.RadialFermiK(kF, 2π*me/β/kF)
 #    N2 = MonteCarlo.Discrete(0, floor(Int, FreqBin[end]/(2π/β*EF)-0.5))
 
     dof = [[1,0,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
