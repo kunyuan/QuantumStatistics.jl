@@ -201,6 +201,16 @@ mutable struct FermiK{D} <: Variable
     end
 end
 
+mutable struct RadialFermiK <: Variable
+    data::Vector{Float64}
+    kF::Float64
+    δk::Float64
+    function RadialFermiK(kF=1.0, δk=0.01, size=MaxOrder)
+        k = [kF for i = 1:size]
+        return new(k, kF, δk)
+    end
+end
+
 mutable struct BoseK{D} <: Variable
     data::Vector{SVector{D,Float64}}
     maxK::Float64

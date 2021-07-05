@@ -8,8 +8,11 @@ const Steps = 1e7
 srcdir = "."
 rundir = isempty(ARGS) ? "." : (pwd()*"/"*ARGS[1])
 
-push!(LOAD_PATH, rundir)
-using parameter
+if !(@isdefined β)
+    include(rundir*"/parameter.jl")
+    using .parameter
+end
+
 println("rs=$rs, β=$β, kF=$kF, EF=$EF, mass2=$mass2")
 
 include(srcdir*"/../electron_gas/RPA.jl")
@@ -31,7 +34,7 @@ end
 println("legendre(0.5)=",legendre(0.5))
 
 dlr = DLR.DLRGrid(:fermi, 10*EF,β, 1e-2)
-const kgrid = Grid.fermiKUL(kF, 9kF, 0.001kF, 2,2) 
+const kgrid = Grid.fermiKUL(kF, 9kF, 0.01kF, 2,3) 
 #const kgrid = Grid.Uniform{Float64, 2}(kF, 1.001kF,[false, false])
 MomBin = kgrid.grid
 
@@ -66,20 +69,20 @@ MomBin = kgrid.grid
 #             kgrid[i]/kF,sigmaR_spl(0.0, kgrid[i]/kF))
 # end
 
-function GG(ωin, k, β=1.0)
-    ω = k^2-kF^2
-    factor = kF^2
-    # ΣR = sigmaR_spl(k/kF, ωin/kF^2)*factor
-    # ΣI = sigmaI_spl(k/kF, ωin/kF^2)*factor
-    ΣR = 0.0#sigmaR_spl( ωin/kF^2,k/kF)*factor
-    ΣI = 0.0#sigmaI_spl( ωin/kF^2,k/kF)*factor
-    return 1.0/((ωin-ΣI) ^2 + (ω+ΣR)^2 )
-end
+# function GG(ωin, k, β=1.0)
+#     ω = k^2-kF^2
+#     factor = kF^2
+#     # ΣR = sigmaR_spl(k/kF, ωin/kF^2)*factor
+#     # ΣI = sigmaI_spl(k/kF, ωin/kF^2)*factor
+#     ΣR = 0.0#sigmaR_spl( ωin/kF^2,k/kF)*factor
+#     ΣI = 0.0#sigmaI_spl( ωin/kF^2,k/kF)*factor
+#     return 1.0/((ωin-ΣI) ^2 + (ω+ΣR)^2 )
+# end
 
-function GG_τ(k, τ)
-    ω = (k^2 / (2me) - EF)
-    return (exp(-ω*τ)-exp(-ω*(β-τ)))/(1+exp(-ω*β))/2.0/ω
-end
+# function GG_τ(k, τ)
+#     ω = (k^2 / (2me) - EF)
+#     return (exp(-ω*τ)-exp(-ω*(β-τ)))/(1+exp(-ω*β))/2.0/ω
+# end
 
 #
 # gap-function
@@ -109,6 +112,9 @@ function Δ(ω, k, isNormed = false)
     if ω<0
         ω=-ω
     end
+    if k>MomBin[end]*kF
+        return 0.0
+    end
     cut = freq_cut
     #   cut = FreqBin[actual_cut_index]
     if ω/kF^2<=cut && isNormed
@@ -132,6 +138,9 @@ function F(k, t)
     if t<0
         t=-t
     end
+    if k>extK_grid.grid[end]
+        return 0.0
+    end
 
     return Grid.linear2D(f_data, extT_grid, extK_grid, t, k)
 end
@@ -140,7 +149,7 @@ println(F(kF, 0.1), "\t", F(kF, β-0.1))
 
 #ExtFreqBin = FreqBin[1:9]*kF^2
 half = Base.floor(Int, length(dlr.n)/2)
-ExtFreqBin = [π*(2*dlr.n[i]+1)/β for i in 1:length(dlr.n)][half+1:end]
+ExtFreqBin = [π*(2*dlr.n[i]+1)/β for i in 1:length(dlr.n)][half+1:end-2]
 #ExtFreqBin = [π*(2*dlr.n[i]+1)/β for i in 1:length(dlr.n)]
 
 #
@@ -154,6 +163,7 @@ const vqinv = [(q^2 + mass2) / (4π * e0^2) for q in qgrid.grid]
 # println(τgrid.grid)
 
 const dW0 = dWRPA(vqinv, qgrid.grid, τgrid.grid, kF, β, spin, me) # dynamic part of the effective interaction
+#const dW0 = dWRPA_analytic(vqinv, qgrid.grid, τgrid.grid, kF, β, spin, me) # dynamic part of the effective interaction
 
 const NF = -TwoPoint.LindhardΩnFiniteTemperature(dim, 0.0, 0, kF, β, me, spin)[1]
 println("NF=$NF")
@@ -202,7 +212,6 @@ end
 
 function integrand(config)
     result = 0.0+0.0im
-    kin, kout = 0.9kF, 1.1kF
 
     if config.curr == 2
         T,K,Ext1,Ext2,Theta,K2 = config.var[1],config.var[2], config.var[3],config.var[4],config.var[5],config.var[6]
@@ -242,11 +251,11 @@ function integrand(config)
         r_s = W1[2]*W2[1]*g2*g3* factor*exp(im*ωout * t1 ) * F(K2[1], (t2-t1))
         s_s = W1[1]*W2[1]*g3*g4* factor*exp(im*ωout * t1 ) * F(K2[1], (-t1))
 
-#        result += (s_s+s_r+r_s+r_r)
+        result += (s_s+s_r+r_s+r_r)* (-1.0)
 
-        # ω1 = (dot(q-k1, q-k1) - kF^2) * β
+        ω1 = (dot(q-k1, q-k1) - kF^2) * β
 
-        # ω2 = (dot(q-k2, q-k2) - kF^2) * β
+        ω2 = (dot(q-k2, q-k2) - kF^2) * β
 
         τ1 = (-t3)/β
         g1 = Spectral.kernelFermiT(τ1, ω1)
@@ -274,7 +283,7 @@ function integrand(config)
         r_s = W1[2]*W2[1]*g3*g6* factor*exp(im*ωout * t1 ) * F(K2[1], (t2-t1))
         s_s = W1[1]*W2[1]*g3*g8* factor*exp(im*ωout * t1 ) * F(K2[1], (-t1))
 
-        result -=  (s_s+s_r+r_s+r_r) * 2.0
+        result +=  (s_s+s_r+r_s+r_r) * (2.0)
 
     # bare interaction
     elseif config.curr==1
@@ -317,7 +326,8 @@ function run(steps)
     Ext1 = MonteCarlo.Discrete(1, length(ExtFreqBin))
     Ext2 = MonteCarlo.Discrete(1, kgrid.size)
     Theta = MonteCarlo.Angle()
-    K2 = MonteCarlo.Tau(MomBin[end]*kF, kF)
+#    K2 = MonteCarlo.Tau(MomBin[end]*kF, kF)
+    K2 = MonteCarlo.RadialFermiK(kF, 2π*me/β/kF)
 #    N2 = MonteCarlo.Discrete(0, floor(Int, FreqBin[end]/(2π/β*EF)-0.5))
 
     dof = [[1,0,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
@@ -347,7 +357,7 @@ function run(steps)
         norm = sum( abs.(avg[:,:,1]))/sum( abs.(Δ_ext) )
         println("norm=$norm")
         norm = 1.0
-        avg, std = avg/norm, std/norm
+        #avg, std = avg/norm, std/norm
         for i in 1:length(ExtFreqBin)
             for j in 1:kgrid.size
                 @printf("%10.8f\t %10.8f\t %10.8f ± %10.8f \t %10.8f\n",

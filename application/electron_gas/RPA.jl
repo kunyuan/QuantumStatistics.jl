@@ -45,22 +45,68 @@ function dWRPA(vqinv, qgrid, τgrid, kF, β, spin, mass)
     return real.(dW0norm) 
 end
 
+function dWRPA_analytic(vqinv, qgrid, τgrid, kF, β, spin, mass)
+    @assert all(qgrid .!= 0.0)
+    EF = kF^2 / (2mass)
+    dlr = DLR.DLRGrid(:corr, 10EF, β, 1e-10) # effective interaction is a correlation function of the form <O(τ)O(0)>
+    Nq, Nτ = length(qgrid), length(τgrid)
+    dW0norm = zeros(Complex{Float64}, (Nq, dlr.size)) # Matsubara grid is the optimized sparse DLR grid 
+    for (ni, n) in enumerate(dlr.n)
+        for (qi, q) in enumerate(qgrid)
+            kernal = 0.0
+            me = mass
+            if abs(q) > 1.0e-8
+                x = q/2/kF
+                ω_n = 2*π*n/β
+                y = me*ω_n/q/kF
+                #Π = me*kF/2/π^2*(1 + (1 -x^2 + y^2)*log(((1+x)^2+y^2)/((1-x)^2+y^2))/4/x - y*atan( 2*y/(y^2+x^2-1) ))
+                Π = me*kF/2/π^2*(1 + (1 -x^2 + y^2)*log1p(4*x/((1-x)^2+y^2))/4/x - y*(atan( 2*y/(y^2+x^2-1) ) ))
+                kernal =  -Π/( vqinv[qi]  + Π )
+                #kernal = Π2
+                #println("test_RPA: $(Π)")
+                #println("test_RPA: $(Π2)")
+            else
+                kernal = 0
+            end
+
+            dW0norm[qi, ni] = kernal
+        end
+        # println("ω_n=2π/β*$(n), Π(q=0, n=0)=$(Π[1, ni])")
+        # println("$ni  $(dW0norm[2, ni])")
+    end
+    dW0norm = DLR.matfreq2tau(:corr, dW0norm, dlr, τgrid, axis=2) # dW0/vq in imaginary-time representation, real-valued but in complex format
+    
+    # println(dW0norm[1, :])
+    # println(DLR.matfreq2tau(:corr, dW0norm[1, :], dlr, τgrid, axis=1))
+    # println(DLR.matfreq2tau(:corr, dW0norm[2, :], dlr, τgrid, axis=1))
+    # coeff = DLR.matfreq2dlr(:corr, dW0norm[1, :], dlr)
+    # fitted = DLR.dlr2matfreq(:corr, coeff, dlr, dlr.n)
+    # for (ni, n) in enumerate(dlr.n)
+    #     println(dW0norm[1, ni], " vs ", fitted[ni])
+    # end
+    return real.(dW0norm) 
+end
+
+
 if abspath(PROGRAM_FILE) == @__FILE__
     using Gaston
     include("parameter.jl")
 
-    qgrid = Grid.boseK(kF, 3kF, 0.2kF, 32) 
-    τgrid = Grid.tau(β, EF / 20, 128)
+    qgrid = Grid.boseKUL(kF, 10kF, 0.0001*sqrt(me^2/β/kF^2), 3,10) 
+    τgrid = Grid.tauUL(β, 0.0001, 3,3)
     # println("qGrid: ", qgrid.grid)
     println("τGrid: ", τgrid.grid)
     vqinv = [(q^2 + mass2) / (4π * e0^2) for q in qgrid.grid] # instantaneous interaction (Coulomb interaction)
 
 
     dW0norm = dWRPA(vqinv, qgrid.grid, τgrid.grid, kF, β, spin, me)
+    dW0norm1 = dWRPA_analytic(vqinv, qgrid.grid, τgrid.grid, kF, β, spin, me)
     for (qi, q) in enumerate(qgrid.grid)
-        println("$q   $(dW0norm[qi, 1])")
+        println("$q   $(dW0norm[qi, 1])   $(dW0norm1[qi, 1])   $(dW0norm1[qi, 1]-dW0norm[qi, 1])")
     end
 
-    display(plot(qgrid.grid ./ kF, dW0norm[:, 1]))
+    plt1 = (plot(qgrid.grid ./ kF, dW0norm[:, 1]))
+    plot!(qgrid.grid ./ kF, dW0norm1[:, 1])
+    display(plt1)
     sleep(100)
 end
