@@ -11,9 +11,10 @@ using Printf
 srcdir = "."
 rundir = isempty(ARGS) ? "." : (pwd()*"/"*ARGS[1])
 
-push!(LOAD_PATH, rundir)
-using parameter
-
+if !(@isdefined β)
+    include(rundir*"/parameter.jl")
+    using .parameter
+end
 
 include("eigen.jl")
 include("grid.jl")
@@ -23,6 +24,38 @@ Function Separation
 
 Separate Gap function to low and high energy parts with given rule
 """
+
+function Normalization(Δ0,Δ0_new, kgrid)
+    kpidx = 1 # panel index of the kgrid
+    head, tail = idx(kpidx, 1, order), idx(kpidx, order, order) 
+    x = @view kgrid.grid[head:tail]
+    w = @view kgrid.wgrid[head:tail]
+    sum = 0
+    for (qi, q) in enumerate(qgrids[1].grid)
+        
+        if q > kgrid.panel[kpidx + 1]
+            # if q is larger than the end of the current panel, move k panel to the next panel
+            while q > kgrid.panel[kpidx + 1]
+                kpidx += 1
+            end
+            head, tail = idx(kpidx, 1, order), idx(kpidx, order, order) 
+            x = @view kgrid.grid[head:tail]
+            w = @view kgrid.wgrid[head:tail]
+            @assert kpidx <= kgrid.Np
+        end
+        wq = qgrids[1].wgrid[qi]
+        Δ_int1 = @view Δ0[head:tail] # all F in the same kpidx-th K panel
+        Δ_int2 = @view Δ0_new[head:tail] # all F in the same kpidx-th K panel
+        DD1 = barycheb(order, q, Δ_int1, w, x) # the interpolation is independent with the panel length
+        DD2 = barycheb(order, q, Δ_int2, w, x)
+        #Δ0[ki] += bare(k, q) * FF * wq
+        sum += DD1*DD2*wq                    
+        @assert isfinite(sum) "fail normaliztion of Δ0"
+    end
+    return sum
+end
+
+
 function Separation(delta0, delta, k::CompositeGrid,  fdlr)
     # cut=0.25
     # low=zeros(size(mom_grid)[1],size(freq_grid)[1])
@@ -46,14 +79,30 @@ function Separation(delta0, delta, k::CompositeGrid,  fdlr)
     #println("separation point:$(k.panel[kindex_left]),$(k.panel[kindex_right])")
     head = idx(kindex_left, 1, order)
     tail = idx(kindex_right, 1, order)-1
+    # for i in 1:fdlr.size
+    #     low[head:tail,i] .+= 1
+    #     high[1:head-1,i] .+= 1
+    #     high[tail+1:length(k.grid),i] .+= 1       
+    # end
+    # low0[head:tail] .+= 1
+    # high0[1:head-1] .+= 1
+    # high0[tail+1:length(k.grid)] .+= 1
+
     for i in 1:fdlr.size
-        low[head:tail,i] .+= 1
-        high[1:head-1,i] .+= 1
-        high[tail+1:length(k.grid),i] .+= 1       
+        for (qi,q) in enumerate(k.grid)
+            if qi>=head && qi<tail
+                low[qi,i] = exp(-(q-kF)^2/mom_sep^2) 
+                low0[qi] = exp(-(q-kF)^2/mom_sep^2)
+            else
+                high[qi,i] = 1-exp(-(q-kF)^2/mom_sep^2) 
+                high0[qi] = 1- exp(-(q-kF)^2/mom_sep^2)                
+            end
+          
+        end
     end
-    low0[head:tail] .+= 1
-    high0[1:head-1] .+= 1
-    high0[tail+1:length(k.grid)] .+= 1
+    
+
+
 
     #println(high0,low0,high0+low0)
     delta_0_low = low0 .* delta0
@@ -191,10 +240,13 @@ function Implicit_Renorm(kernal, kernal_bare, kgrid, qgrids, fdlr )
             # delta_0_low = delta_0_low_new ./ modulus
             # delta_low = delta_low_new ./ modulus
 
-            lamu = dot(delta_low_new, delta_low)
+            #lamu = dot(delta_low_new, delta_low)
+            lamu = Normalization(delta_0_low, delta_0_low_new, kgrid )
             delta_0_low_new = delta_0_low_new+shift*delta_0_low
             delta_low_new = delta_low_new+shift*delta_low
-            modulus = sqrt(dot(delta_low_new, delta_low_new))
+            modulus = Normalization(delta_0_low_new, delta_0_low_new, kgrid)
+            @assert modulus>0
+            modulus = sqrt(modulus)
             delta_0_low = delta_0_low_new ./ modulus
             delta_low = delta_low_new ./ modulus
             #println(lamu)
@@ -322,6 +374,13 @@ function Explicit_Solver(kernal, kernal_bare, kgrid, qgrids, fdlr, bdlr )
         #delta = real(DLR.tau2matfreq(:acorr, delta, fdlr, fdlr.n, axis=2))        
         F=calcF(delta_0, delta, fdlr, kgrid)
         n=n+1
+        #test dlr err
+        F_test =  DLR.tau2matfreq(:acorr, F, fdlr, fdlr.n, axis=2)
+        F_test =  DLR.matfreq2tau(:acorr, F_test, fdlr, fdlr.τ, axis=2)
+        
+        println("err_F_real=",maximum(abs.(real.(F_test) - F)))
+        println("err_F_imag=", maximum(abs.(imag.(F_test) )))
+        println("err_F_ratio=",maximum(abs.(real.(F_test) - F)./abs.(F)))
         delta_0_new, delta_new =  calcΔ(F, kernal, kernal_bare, fdlr , kgrid, qgrids)./(-4*π*π)
         #delta_0_low_new, delta_0_high_new, delta_low_new, delta_high_new = Separation(delta_0_new, delta_new, kgrid, fdlr)
         lamu = dot(delta_new, delta)
@@ -497,6 +556,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
     kpanel_bose = KPanel(2Nk, 2*kF, 2.1*maxK, minK/100.0)
     kgrid = CompositeGrid(kpanel, order, :cheb)
     qgrids = [CompositeGrid(QPanel(Nk, kF, maxK, minK, k), order, :gaussian) for k in kgrid.grid] # qgrid for each k in kgrid.grid
+    const kF_label = searchsortedfirst(kgrid.grid, kF)
+    println("kf_label:$(kF_label), $(kgrid.grid[kF_label])")
     println("kgrid number: $(length(kgrid.grid))")
     println("max qgrid number: ", maximum([length(q.grid) for q in qgrids]))
 
@@ -513,8 +574,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
 
 
 
-    #Δ0_final, Δ_final, F = Implicit_Renorm(kernal, kernal_bare,  kgrid, qgrids, fdlr)
-    Δ0_final, Δ_final, F = Explicit_Solver(kernal, kernal_bare, kgrid, qgrids, fdlr, bdlr)
+    Δ0_final, Δ_final, F = Implicit_Renorm(kernal, kernal_bare,  kgrid, qgrids, fdlr)
+    #Δ0_final, Δ_final, F = Explicit_Solver(kernal, kernal_bare, kgrid, qgrids, fdlr, bdlr)
     #Δ0_final, Δ_final = Explicit_Solver_inherit( kgrid, qgrids, fdlr, fdlr2, bdlr)
     Δ_freq = DLR.tau2matfreq(:acorr, Δ_final, fdlr, fdlr.n, axis=2)
     F_τ = DLR.tau2dlr(:acorr, F, fdlr, axis=2)
