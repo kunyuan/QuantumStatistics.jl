@@ -1,9 +1,37 @@
 # calculate (d) diagram in Kohn-Luttinger's paper as kernel of gap-equation at kF on dlr tau grids
 
+"""
+Calculate one loop of gap-function equation with MC. Receive F(τ, k) from data, produce Δ(ω, k).
+
+List of parameters to be defined in parameter.jl:
+
+const me = 0.5  # electron mass
+const dim = 3    # dimension (D=2 or 3, doesn't work for other D!!!)
+const spin = 2  # number of spins
+const EPS = 1e-10
+
+const rs = 3.0
+const e0 = sqrt(rs*2.0/(9π/4.0)^(1.0/3))  #sqrt(2) electric charge
+const kF = 1.0 #(dim == 3) ? (9π / (2spin))^(1 / 3) / rs : sqrt(4 / spin) / rs
+const EF = kF^2 / (2me)
+const β = 250.0 #/ kF^2
+const mass2 = 0.0
+const mom_sep = 0.1
+const Weight = SVector{2,Float64}
+const Base.abs(w::Weight) = abs(w[1]) + abs(w[2]) # define abs(Weight)
+const extK_grid = Grid.fermiKUL(kF, 10kF, 0.00001*sqrt(me^2/β/kF^2), 8,8) 
+const extT_grid = Grid.tauUL(β, 0.00001, 8,8)
+
+const Steps = 1e7
+const ℓ = 1
+const Diagram_Order = 1
+
+"""
+
+
 using QuantumStatistics, LinearAlgebra, Random, Printf, BenchmarkTools, InteractiveUtils, Parameters, Dierckx, StaticArrays
 using DelimitedFiles
 using PyCall
-const Steps = 1e8
 
 srcdir = "."
 rundir = isempty(ARGS) ? "." : (pwd()*"/"*ARGS[1])
@@ -16,8 +44,6 @@ end
 println("rs=$rs, β=$β, kF=$kF, EF=$EF, mass2=$mass2")
 
 include(srcdir*"/../electron_gas/RPA.jl")
-
-const ℓ=1
 
 special = pyimport("scipy.special")
 coeff = SVector{ℓ+1,Float64}(special.legendre(ℓ).c)
@@ -348,8 +374,14 @@ function run(steps)
     K2 = MonteCarlo.RadialFermiK(kF, 2π*me/β/kF)
 #    N2 = MonteCarlo.Discrete(0, floor(Int, FreqBin[end]/(2π/β*EF)-0.5))
 
-#    dof = [[1,0,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
-    dof = [[1,0,1,1,1,1],[3,1,1,1,1,1]] # degrees of freedom of the normalization diagram and the bubble
+    if Diagram_Order == 1
+        dof = [[1,0,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
+    elseif Diagram_Order == 2
+        dof = [[1,0,1,1,1,1],[3,1,1,1,1,1]] # degrees of freedom of the normalization diagram and the bubble
+
+    else
+        dof = [[1,0,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
+    end
 #    dof = [[3,1,1,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
 #    dof = [[3,1,1,1,1,1,1],[1,0,1,1,1,1,1]] # degrees of freedom of the normalization diagram and the bubble
     obs = zeros(Float64,(length(ExtFreqBin),kgrid.size,2))
