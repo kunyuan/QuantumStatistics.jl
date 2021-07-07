@@ -3,7 +3,7 @@
 using QuantumStatistics, LinearAlgebra, Random, Printf, BenchmarkTools, InteractiveUtils, Parameters, Dierckx, StaticArrays
 using DelimitedFiles
 using PyCall
-const Steps = 1e7
+const Steps = 1e8
 
 srcdir = "."
 rundir = isempty(ARGS) ? "." : (pwd()*"/"*ARGS[1])
@@ -17,7 +17,7 @@ println("rs=$rs, β=$β, kF=$kF, EF=$EF, mass2=$mass2")
 
 include(srcdir*"/../electron_gas/RPA.jl")
 
-const ℓ=0
+const ℓ=1
 
 special = pyimport("scipy.special")
 coeff = SVector{ℓ+1,Float64}(special.legendre(ℓ).c)
@@ -33,10 +33,11 @@ end
 
 println("legendre(0.5)=",legendre(0.5))
 
-dlr = DLR.DLRGrid(:fermi, 10*EF,β, 1e-2)
-const kgrid = Grid.fermiKUL(kF, 9kF, 0.01kF, 2,3) 
+dlr = DLR.DLRGrid(:acorr, 100*EF,β, 1e-4)
+const kgrid = Grid.fermiKUL(kF, 9kF, 0.001kF, 2,2) 
 #const kgrid = Grid.Uniform{Float64, 2}(kF, 1.001kF,[false, false])
-MomBin = kgrid.grid
+#
+#MomBin = kgrid.grid
 
 #
 # G(w,k)G(-w,-k)
@@ -79,10 +80,13 @@ MomBin = kgrid.grid
 #     return 1.0/((ωin-ΣI) ^2 + (ω+ΣR)^2 )
 # end
 
-# function GG_τ(k, τ)
-#     ω = (k^2 / (2me) - EF)
-#     return (exp(-ω*τ)-exp(-ω*(β-τ)))/(1+exp(-ω*β))/2.0/ω
-# end
+function GG_τ(k, τ)
+    ω = (k^2 / (2me) - EF)
+    if abs(ω*β)<1e-3
+        return (β-2τ)/4.0
+    end
+    return (exp(-ω*τ)-exp(-ω*(β-τ)))/(1+exp(-ω*β))/2.0/ω
+end
 
 #
 # gap-function
@@ -92,18 +96,31 @@ dataFileName = rundir*"/delta.dat"
 
 f = open(dataFileName, "r")
 
-MomBin = map(x->parse(Float64,x),split(readline(f)," ")[1:end-1])
-FreqBin = map(x->parse(Float64,x),split(readline(f)," ")[1:end-1])
-data = map(x->parse(Float64,x),split(readline(f)," ")[1:end-1])
+Δ_data = readdlm(f)
+raw_mom = Δ_data[:,1]
+raw_n = Δ_data[:,2]
+raw_data = Δ_data[:,3]
 
-data = reshape(data,(length(MomBin),length(FreqBin)))
+N_ω = length( [ q for q in raw_mom if q == raw_mom[1]])
+MomBin = [raw_mom[i] for i in 1:length(raw_mom) if i%N_ω==1]
+FreqBin = [π*(2*raw_n[i]+1)/β for i in 1:N_ω ]
+println(MomBin)
+println(FreqBin)
+data = reshape(raw_data,(length(FreqBin),length(MomBin)))
 
-delta_spl = Spline2D(MomBin,FreqBin,data;kx=1,ky=1,s=0.0)
+# MomBin = map(x->parse(Float64,x),split(readline(f)," ")[1:end-1])
+# FreqBin = map(x->parse(Float64,x),split(readline(f)," ")[1:end-1])
+# data = map(x->parse(Float64,x),split(readline(f)," ")[1:end-1])
 
-const lamu = 0.2049458542291443 #beta200, rs4
+# data = reshape(data,(length(MomBin),length(FreqBin)))
+
+delta_spl = Spline2D(FreqBin,MomBin,data;kx=1,ky=1,s=0.0)
+
+#const lamu = 0.2049458542291443 #beta200, rs4
 #const lamu = 0.2229769140136642 #beta250, rs4
 #const lamu = 0.002398499678459926 #beta25, rs2
 #const lamu = 0.02231536377399141 #beta250,rs2
+const lamu = 1.0
 
 const freq_cut = 0.25
 const actual_cut_index = findmin([(freq-freq_cut<0 ? FreqBin[end] : freq ) for freq in FreqBin ])[2]-1
@@ -118,9 +135,9 @@ function Δ(ω, k, isNormed = false)
     cut = freq_cut
     #   cut = FreqBin[actual_cut_index]
     if ω/kF^2<=cut && isNormed
-        return delta_spl(k/kF,ω/kF^2)*lamu
+        return delta_spl(ω/kF^2,k/kF)*lamu
     else
-        return delta_spl(k/kF,ω/kF^2)
+        return delta_spl(ω/kF^2,k/kF)
 
     end
 end
@@ -138,32 +155,33 @@ function F(k, t)
     if t<0
         t=-t
     end
-    if k>extK_grid.grid[end]
-        return 0.0
-    end
+    # if k>extK_grid.grid[end]
+    #     return 0.0
+    # end
 
-    return Grid.linear2D(f_data, extT_grid, extK_grid, t, k)
+    return Grid.linear2D(f_data, extT_grid, extK_grid, t*kF^2, k/kF)
+    #return GG_τ(k, t)
 end
 
 println(F(kF, 0.1), "\t", F(kF, β-0.1))
 
-#ExtFreqBin = FreqBin[1:9]*kF^2
-half = Base.floor(Int, length(dlr.n)/2)
-ExtFreqBin = [π*(2*dlr.n[i]+1)/β for i in 1:length(dlr.n)][half+1:end-2]
+ExtFreqBin = FreqBin[1:30]*kF^2
+#half = Base.floor(Int, length(dlr.n)/2)
+#ExtFreqBin = [π*(2*dlr.n[i]+1)/β for i in 1:length(dlr.n)][1:end]
 #ExtFreqBin = [π*(2*dlr.n[i]+1)/β for i in 1:length(dlr.n)]
 
 #
 # interaction
 #
 
-const qgrid = Grid.boseKUL(kF, 10kF, 0.00001*sqrt(me^2/β/kF^2), 12,8) 
-const τgrid = Grid.tauUL(β, 0.0001, 11,8)
+const qgrid = Grid.boseKUL(kF, 10kF, 0.00001*sqrt(me^2/β/kF^2), 16,12)
+const τgrid = Grid.tauUL(β, 0.0001, 16,12)
 const vqinv = [(q^2 + mass2) / (4π * e0^2) for q in qgrid.grid]
 # println(qgrid.grid)
 # println(τgrid.grid)
 
-const dW0 = dWRPA(vqinv, qgrid.grid, τgrid.grid, kF, β, spin, me) # dynamic part of the effective interaction
-#const dW0 = dWRPA_analytic(vqinv, qgrid.grid, τgrid.grid, kF, β, spin, me) # dynamic part of the effective interaction
+#const dW0 = dWRPA(vqinv, qgrid.grid, τgrid.grid, kF, β, spin, me) # dynamic part of the effective interaction
+const dW0 = dWRPA_analytic(vqinv, qgrid.grid, τgrid.grid, kF, β, spin, me) # dynamic part of the effective interaction
 
 const NF = -TwoPoint.LindhardΩnFiniteTemperature(dim, 0.0, 0, kF, β, me, spin)[1]
 println("NF=$NF")
@@ -330,8 +348,8 @@ function run(steps)
     K2 = MonteCarlo.RadialFermiK(kF, 2π*me/β/kF)
 #    N2 = MonteCarlo.Discrete(0, floor(Int, FreqBin[end]/(2π/β*EF)-0.5))
 
-    dof = [[1,0,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
-#    dof = [[1,0,1,1,1,1],[3,1,1,1,1,1]] # degrees of freedom of the normalization diagram and the bubble
+#    dof = [[1,0,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
+    dof = [[1,0,1,1,1,1],[3,1,1,1,1,1]] # degrees of freedom of the normalization diagram and the bubble
 #    dof = [[3,1,1,1,1,1,1],] # degrees of freedom of the normalization diagram and the bubble
 #    dof = [[3,1,1,1,1,1,1],[1,0,1,1,1,1,1]] # degrees of freedom of the normalization diagram and the bubble
     obs = zeros(Float64,(length(ExtFreqBin),kgrid.size,2))
