@@ -247,7 +247,7 @@ function RPA(q, n)
             else
                 Π = me*kF/2/π^2
             end
-            
+            kernal = - Π/( q^2/4/π/g  + Π )
         else
             if abs(q - 2*kF) > EPS
                 theta = atan( 2*y/(y^2+x^2-1) )
@@ -263,9 +263,12 @@ function RPA(q, n)
                 end
                 @assert theta >= 0 && theta<= π
                 Π = me*kF/2/π^2*(1 + y^2*log1p(4/y^2)/4 - y*theta)                       
-            end 
+            end
+            Π0 = Π / q^2
+            kernal = - Π0/( 1.0/4/π/g  + Π0 )
         end
-        kernal = - Π/( q^2/4/π/g  + Π )
+       
+        #kernal = Π
     else
         kernal = 0
         
@@ -325,9 +328,9 @@ function calcΔ(F,  kernal, kernal_bare, fdlr, kgrid, qgrids)
     F_ins = DLR.tau2dlr(:acorr, F, fdlr, axis=2)
     F_ins = DLR.dlr2tau(:acorr, F_ins, fdlr, [1.0e-12,] , axis=2)[:,1]
 
-    #F_ins2 = DLR.tau2dlr(:acorr, F, fdlr, axis=2)
-    #F_ins2 = DLR.dlr2tau(:acorr, F_ins2, fdlr, [β-1.0e-12,] , axis=2)[:,1]
-    #println("F_ins[0] = $((F_ins[1])), F_ins[β]=$((F_ins2[1])) ")
+    # F_ins2 = DLR.tau2dlr(:acorr, F, fdlr, axis=2)
+    # F_ins2 = DLR.dlr2tau(:acorr, F_ins2, fdlr, [β-1.0e-12,] , axis=2)[:,1]
+    # println("F_ins[0] = $((F_ins[1])), F_ins[β]=$((F_ins2[1])) ")
     for (ki, k) in enumerate(kgrid.grid)
         
         kpidx = 1 # panel index of the kgrid
@@ -421,7 +424,7 @@ end
 
 if abspath(PROGRAM_FILE) == @__FILE__
     
-    fdlr = DLR.DLRGrid(:acorr, 10EF, β, 1e-10) 
+    fdlr = DLR.DLRGrid(:acorr, 100EF, β, 1e-10) 
     bdlr = DLR.DLRGrid(:corr, 100EF, β, 1e-10) 
     ########## non-uniform kgrid #############
     # Nk = 16
@@ -443,15 +446,15 @@ if abspath(PROGRAM_FILE) == @__FILE__
 
     q_test = 1e-9
     test_RPA2 = RPA(q_test , 0)
-    test_RPA = RPA(q_test , 1) / q_test^2
+    test_RPA = RPA(q_test , 1)  #/ q_test^2
     println("$(test_RPA),$(test_RPA2)")
-    kernal_bare_int, kernal_int = legendre_dc(bdlr, kgrid, qgrids, kpanel_bose, 2*order)
-    
+    kernal_bare, kernal_int = legendre_dc(bdlr, kgrid, qgrids, kpanel_bose, 2*order)
+    kernal =  real(DLR.matfreq2tau(:corr, kernal_int, bdlr, fdlr.τ, axis=3))
     #kernal_int_double = legendre_dc(bdlr, kgrid, qgrids, kpanel_bose, 4*order)
-    kernal_bare, kernal = dH1_freq(kgrid, qgrids, bdlr, fdlr)
-    println("legendre_err: $(maximum(abs.(kernal_bare .- kernal_bare_int)))  , $(maximum(abs.(kernal .- kernal_int)))")
+    #kernal_bare, kernal = dH1_freq(kgrid, qgrids, bdlr, fdlr)
+    #println("legendre_err: $(maximum(abs.(kernal_bare .- kernal_bare_int)))  , $(maximum(abs.(kernal .- kernal_int)))")
     #println("legendre_err: $(maximum(abs.(kernal_int_double .- kernal_int)))")
-    println("$(kgrid.grid[1]),$((bdlr.n)[bdlr.size÷2+1])")
+    #println("$(kgrid.grid[1]),$((bdlr.n)[bdlr.size÷2+1])")
     #kernal = dH1_tau(kgrid, qgrids, fdlr)
     # xMin=0.99999
     # xMax=1.00001
@@ -463,12 +466,12 @@ if abspath(PROGRAM_FILE) == @__FILE__
     # readline()
     
 
-    kgrid_double = CompositeGrid(kpanel, 2 * order, :cheb)
+    #kgrid_double = CompositeGrid(kpanel, 2 * order, :cheb)
     # kgrid_double = CompositeGrid(kpanel, order, :cheb)
-    qgrids_double = [CompositeGrid(QPanel(Nk, kF, maxK, minK, k), 2order, :gaussian) for k in kgrid_double.grid] # qgrid for each k in kgrid.grid
+    #qgrids_double = [CompositeGrid(QPanel(Nk, kF, maxK, minK, k), 2order, :gaussian) for k in kgrid_double.grid] # qgrid for each k in kgrid.grid
 
     #kernal_double = dH1_freq(kgrid, qgrids, fdlr)
-    kernal_double = dH1_tau(kgrid_double, qgrids_double, fdlr)
+    #kernal_double = dH1_tau(kgrid_double, qgrids_double, fdlr)
 
    
 
@@ -476,9 +479,11 @@ if abspath(PROGRAM_FILE) == @__FILE__
     Δ = zeros(Float64, (length(kgrid.grid), fdlr.size))
     Δ0 = zeros(Float64, length(kgrid.grid)) .+ 1.0
     F = calcF(Δ0, Δ, fdlr, kgrid)
-    gg_τ = GG_τ(kgrid, [1.0e-12,])
-    F_ins = DLR.tau2dlr(:acorr, F, fdlr, axis=2)
-    F_ins = DLR.dlr2tau(:acorr, F_ins, fdlr, [1.0e-12,] , axis=2)[:,1]
+    Δ0_final, Δ_final =  calcΔ(F, kernal, kernal_bare, fdlr , kgrid, qgrids)./(-4*π*π)
+    Δ_freq = DLR.tau2matfreq(:acorr, Δ_final, fdlr, fdlr.n, axis=2)
+    # gg_τ = GG_τ(kgrid, [1.0e-12,])
+    # F_ins = DLR.tau2dlr(:acorr, F, fdlr, axis=2)
+    # F_ins = DLR.dlr2tau(:acorr, F_ins, fdlr, [1.0e-12,] , axis=2)[:,1]
     # testGrid(kgrid, qgrids, qgrid2s, F)
     # println(size(F))
     # filename = "./bare.dat"
@@ -492,25 +497,25 @@ if abspath(PROGRAM_FILE) == @__FILE__
   
     println("sumF: $(sum(F)), maximum: $(maximum(abs.(F)))")
     
-    printstyled("Calculating Δ\n", color=:yellow)
-    @time Δ0, Δ = calcΔ(F, kernal, fdlr ,kgrid, qgrids)
+    # printstyled("Calculating Δ\n", color=:yellow)
+    # @time Δ0, Δ = calcΔ(F, kernal, fdlr ,kgrid, qgrids)
   
-    fdlr2 = DLR.DLRGrid(:acorr, 100EF, β, 1e-10) 
-    bdlr2 = DLR.DLRGrid(:corr, 100EF, β, 1e-10) 
+    # fdlr2 = DLR.DLRGrid(:acorr, 100EF, β, 1e-10) 
+    # bdlr2 = DLR.DLRGrid(:corr, 100EF, β, 1e-10) 
 
-    kernal_2 = dH1_tau(kgrid, qgrids, fdlr2)
+    # kernal_2 = dH1_tau(kgrid, qgrids, fdlr2)
 
-    Δ_2 = zeros(Float64, (length(kgrid.grid), fdlr2.size))
-    Δ0_2 = zeros(Float64, length(kgrid.grid)) .+ 1.0
-    F_2 = calcF(Δ0_2, Δ_2, fdlr2, kgrid)
-    @time Δ0_2, Δ_2 = calcΔ(F_2, kernal_2, fdlr2 ,kgrid, qgrids)
+    # Δ_2 = zeros(Float64, (length(kgrid.grid), fdlr2.size))
+    # Δ0_2 = zeros(Float64, length(kgrid.grid)) .+ 1.0
+    # F_2 = calcF(Δ0_2, Δ_2, fdlr2, kgrid)
+    # @time Δ0_2, Δ_2 = calcΔ(F_2, kernal_2, fdlr2 ,kgrid, qgrids)
 
-    Δ_freq = DLR.tau2matfreq(:acorr, Δ, fdlr, fdlr.n, axis=2)
-    Δ_freq_2 = DLR.tau2matfreq(:acorr, Δ_2, fdlr2, fdlr.n, axis=2)
-    err0 = maximum(abs.(Δ0_2-Δ0))
-    err = maximum(abs.(Δ_freq_2-Δ_freq))
-    ind=findmax(abs.(Δ0_2-Δ0))[2]
-    println("err0: $(err0), err: $(err), mom: $(kgrid.grid[ind[1]])")
+    # Δ_freq = DLR.tau2matfreq(:acorr, Δ, fdlr, fdlr.n, axis=2)
+    # Δ_freq_2 = DLR.tau2matfreq(:acorr, Δ_2, fdlr2, fdlr.n, axis=2)
+    # err0 = maximum(abs.(Δ0_2-Δ0))
+    # err = maximum(abs.(Δ_freq_2-Δ_freq))
+    # ind=findmax(abs.(Δ0_2-Δ0))[2]
+    # println("err0: $(err0), err: $(err), mom: $(kgrid.grid[ind[1]])")
     # Δ_2 = zeros(Float64, (length(kgrid_double.grid), fdlr.size))
     # Δ0_2 = zeros(Float64, length(kgrid_double.grid)) .+ 1.0
     # F_2 = calcF(Δ0_2, Δ_2, fdlr, kgrid_double)
@@ -538,20 +543,28 @@ if abspath(PROGRAM_FILE) == @__FILE__
     # # maxvl, maxindex= findmax(reshape(abs.(Δ-Δ_double), fdlr.size*length(kgrid)))
     # # println(maxindex)
     # # index1 = maxindex ÷
-    maxindex = 1
-    for r in 1:length(kgrid.grid)
-        if kgrid.grid[r] < 2.0
-            global maxindex = r
+    outFileName = rundir*"/delta_$(WID).dat"
+    f = open(outFileName, "w")
+    for (ki, k) in enumerate(kgrid.grid)
+        for (ni, n) in enumerate(fdlr.n)
+            @printf(f, "%32.17g  %32.17g %32.17g %32.17g\n",kgrid.grid[ki] ,fdlr.n[ni],Δ_freq[ki, ni] ,Δ_freq[ki, ni] + Δ0_final[ki])
         end
     end
-    filename = "./test.dat"
-    println(fdlr.n, fdlr.n[fdlr.size ÷ 2 + 1])
-    open(filename, "w") do io
-        for r in 1:length(kgrid.grid)
-            @printf(io, "%32.17g  %32.17g  %32.17g %32.17g\n",kgrid.grid[r] ,Δ0[r], real(Δ_freq[r, fdlr.size ÷ 2 + 1]), Δ0[r]+real(Δ_freq[r, fdlr.size ÷ 2 + 1]))
-        end
-    end
-    println("Max:",(maximum(abs.(Δ0[:])))/4/π^2,"\t", maximum(abs.(real(Δ_freq[:, fdlr.size ÷ 2 + 1])))/4/π^2,"\t", maximum(real( Δ0[:]+Δ_freq[:, fdlr.size ÷ 2 + 1])))
+
+    # maxindex = 1
+    # for r in 1:length(kgrid.grid)
+    #     if kgrid.grid[r] < 2.0
+    #         global maxindex = r
+    #     end
+    # end
+    # filename = "./test.dat"
+    # println(fdlr.n, fdlr.n[fdlr.size ÷ 2 + 1])
+    # open(filename, "w") do io
+    #     for r in 1:length(kgrid.grid)
+    #         @printf(io, "%32.17g  %32.17g  %32.17g %32.17g\n",kgrid.grid[r] ,Δ0[r], real(Δ_freq[r, fdlr.size ÷ 2 + 1]), Δ0[r]+real(Δ_freq[r, fdlr.size ÷ 2 + 1]))
+    #     end
+    # end
+    # println("Max:",(maximum(abs.(Δ0[:])))/4/π^2,"\t", maximum(abs.(real(Δ_freq[:, fdlr.size ÷ 2 + 1])))/4/π^2,"\t", maximum(real( Δ0[:]+Δ_freq[:, fdlr.size ÷ 2 + 1])))
     # filename = "./.dat"    
     # open(filename, "w") do io
     #     for r in 1:length(kgrid)
