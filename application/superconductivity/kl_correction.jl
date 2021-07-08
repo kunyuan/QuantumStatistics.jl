@@ -5,26 +5,26 @@ Calculate one loop of gap-function equation with MC. Receive F(τ, k) from data,
 
 List of parameters to be defined in parameter.jl:
 
-const me = 0.5  # electron mass
-const dim = 3    # dimension (D=2 or 3, doesn't work for other D!!!)
-const spin = 2  # number of spins
-const EPS = 1e-10
+const me   # electron mass
+const dim     # dimension (D=2 or 3, doesn't work for other D!!!)
+const spin   # number of spins
+const EPS 
 
-const rs = 3.0
-const e0 = sqrt(rs*2.0/(9π/4.0)^(1.0/3))  #sqrt(2) electric charge
-const kF = 1.0 #(dim == 3) ? (9π / (2spin))^(1 / 3) / rs : sqrt(4 / spin) / rs
-const EF = kF^2 / (2me)
-const β = 250.0 #/ kF^2
-const mass2 = 0.0
-const mom_sep = 0.1
+const rs 
+const e0 # sqrt(rs*2.0/(9π/4.0)^(1.0/3))  #sqrt(2) electric charge
+const kF  #(dim == 3) ? (9π / (2spin))^(1 / 3) / rs : sqrt(4 / spin) / rs
+const EF  kF^2 / (2me)
+const β   #/ kF^2
+const mass2 
+
 const Weight = SVector{2,Float64}
 const Base.abs(w::Weight) = abs(w[1]) + abs(w[2]) # define abs(Weight)
-const extK_grid = Grid.fermiKUL(kF, 10kF, 0.00001*sqrt(me^2/β/kF^2), 8,8) 
-const extT_grid = Grid.tauUL(β, 0.00001, 8,8)
+const extK_grid # Grid.fermiKUL(kF, 10kF, 0.00001*sqrt(me^2/β/kF^2), 8,8) 
+const extT_grid # Grid.tauUL(β, 0.00001, 8,8)
 
-const Steps = 1e7
-const ℓ = 1
-const Diagram_Order = 1
+const Steps # 1e7
+const ℓ # 1, 2, ...
+const Diagram_Order # 1, 2
 
 """
 
@@ -396,6 +396,8 @@ function run(steps)
     # NF = -TwoPoint.LindhardΩnFiniteTemperature(dim, 0.0, 0, kF, β, me, spin)[1]
     # println("NF=$NF")
 
+    outFileName = rundir*"/compare.dat"
+    f = open(outFileName, "w")
 
     if isnothing(avg) == false
         Δ_ext = zeros(Float64,(length(ExtFreqBin),kgrid.size))
@@ -410,7 +412,7 @@ function run(steps)
         #avg, std = avg/norm, std/norm
         for i in 1:length(ExtFreqBin)
             for j in 1:kgrid.size
-                @printf("%10.8f\t %10.8f\t %10.8f ± %10.8f \t %10.8f\n",
+                @printf(f, "%10.8f\t %10.8f\t %10.8f ± %10.8f \t %10.8f\n",
                         ExtFreqBin[i],kgrid[j],
                         (avg[i,j,1]), (std[i,j,1]),#(avg[i,j,2]), (std[i,j,2]),
                         Δ_ext[i,j])
