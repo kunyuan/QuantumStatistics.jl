@@ -3,7 +3,7 @@ using QuantumStatistics
 using LegendrePolynomials
 using Printf
 # using Gaston
-#using Plots
+using Plots
 
 srcdir = "."
 rundir = isempty(ARGS) ? "." : (pwd()*"/"*ARGS[1])
@@ -126,28 +126,28 @@ function calcF(Δ0, Δ, fdlr, k::CompositeGrid)
     Δ = DLR.tau2matfreq(:acorr, Δ, fdlr, fdlr.n, axis=2)
     #F = zeros(ComplexF64, (length(k.grid), fdlr.size))
     F = zeros(ComplexF64, (length(k.grid), fdlr.size))
-
     for (ki, k) in enumerate(k.grid)
         ω = k^2 / (2me) - EF
         for (ni, n) in enumerate(fdlr.n)
             np = n # matsubara freqeuncy index for the upper G: (2np+1)π/β
             nn = -n - 1 # matsubara freqeuncy for the upper G: (2nn+1)π/β = -(2np+1)π/β
-            F[ki, ni] = (Δ[ki, ni] + Δ0[ki]) * Spectral.kernelFermiΩ(nn, ω, β) * Spectral.kernelFermiΩ(np, ω, β)
-            #F[ki, ni] = (Δ[ki, ni]) * Spectral.kernelFermiΩ(nn, ω, β) * Spectral.kernelFermiΩ(np, ω, β)
-      
+            #F[ki, ni] = (Δ[ki, ni] + Δ0[ki]) * Spectral.kernelFermiΩ(nn, ω, β) * Spectral.kernelFermiΩ(np, ω, β)
+            F[ki, ni] = (Δ[ki, ni]) * Spectral.kernelFermiΩ(nn, ω, β) * Spectral.kernelFermiΩ(np, ω, β)
+           
         end
 
     end
     
     #println("F_imag=$(F_max)")
     F = DLR.matfreq2tau(:acorr, F, fdlr, fdlr.τ, axis=2)
-    # gg_τ = GG_τ(kgrid, fdlr.τ)
-    
-    # for (ki, k) in enumerate(k.grid)
-    #     for (ni, n) in enumerate(fdlr.τ)
-    #         F[ki, ni] = F[ki, ni] + Δ0[ki] * gg_τ[ki, ni]
-    #     end
-    # end
+    #gg_test = real(DLR.matfreq2tau(:acorr, gg_freq, fdlr, fdlr.τ, axis=2))
+    gg_τ = GG_τ(kgrid, fdlr.τ)
+    #println("max gg err:$(maximum(abs.(gg_test.-gg_τ)))")
+    for (ki, k) in enumerate(k.grid)
+        for (ni, n) in enumerate(fdlr.τ)
+            F[ki, ni] = F[ki, ni] + Δ0[ki] * gg_τ[ki, ni]
+        end
+    end
    
     return  real(F)
 end
@@ -377,13 +377,25 @@ function calcΔ(F,  kernal, kernal_bare, fdlr, kgrid, qgrids)
     return Δ0, Δ 
 end
 
+
 function GG_τ(kgrid, tau)
     GG = zeros(Float64, (length(kgrid.grid), length(tau)))
     for (ki,k) in enumerate(kgrid.grid)
         ω = (k^2 / (2me) - EF)
+        x = β*ω/2.0
+       
         for (τi, τ) in enumerate(tau)
-            GG[ki,τi] = (exp(-ω*τ)-exp(-ω*(β-τ)))/(1+exp(-ω*β))/2.0/ω
-            
+            y = 2*τ/β-1.0
+            if abs(ω*β)<1e-6
+                GG[ki,τi] = (β-2τ)/4.0
+            elseif x>100.0
+                GG[ki,τi] = (exp(-x*(y+1)) - exp(x*(y-1)))/2.0/ω
+            elseif x<-100.0    
+                GG[ki,τi] = (exp(-x*(y-1)) - exp(x*(y+1)))/2.0/ω
+            else
+                GG[ki,τi] = (exp(-x*y) - exp(x*y))/(exp(x)+exp(-x))/2.0/ω                
+            end
+            @assert isnan(GG[ki,τi])==false "$(k),$(τ),$(ω),$(β),$(exp(1000.0))"
             #GG[ki, τi] = exp(-x*y)/2.0/cosh(x)
         end
     end
@@ -424,19 +436,48 @@ end
 
 if abspath(PROGRAM_FILE) == @__FILE__
     
-    fdlr = DLR.DLRGrid(:acorr, 100EF, β, 1e-10) 
+    fdlr = DLR.DLRGrid(:fermi, 100EF, β, 1e-10) 
     bdlr = DLR.DLRGrid(:corr, 100EF, β, 1e-10) 
     ########## non-uniform kgrid #############
     # Nk = 16
     # order = 8
     # maxK = 10.0 * kF
     # minK = 0.00001 * kF
-    
+   
     kpanel = KPanel(Nk, kF, maxK, minK)
     kpanel_bose = KPanel(2Nk, 2*kF, 2.1*maxK, minK/100.0)
     kgrid = CompositeGrid(kpanel, order, :cheb)
     #kgrid_bose = CompositeGrid(kpanel_bose, order, :gaussian)
     qgrids = [CompositeGrid(QPanel(Nk, kF, maxK, minK, k), order, :gaussian) for k in kgrid.grid] # qgrid for each k in kgrid.grid
+    const kF_label = searchsortedfirst(kgrid.grid, kF)
+
+    gg_freq = zeros(ComplexF64, (length(kgrid.grid), fdlr.size))
+    for (ki, k) in enumerate(kgrid.grid)
+        ω = k^2 / (2me) - EF
+        for (ni, n) in enumerate(fdlr.n)
+            np = n # matsubara freqeuncy index for the upper G: (2np+1)π/β
+            nn = -n - 1 # matsubara freqeuncy for the upper G: (2nn+1)π/β = -(2np+1)π/β
+            #F[ki, ni] = (Δ[ki, ni] + Δ0[ki]) * Spectral.kernelFermiΩ(nn, ω, β) * Spectral.kernelFermiΩ(np, ω, β)
+            gg_freq[ki, ni] = Spectral.kernelFermiΩ(nn, ω, β) * Spectral.kernelFermiΩ(np, ω, β)
+            
+        end
+
+    end
+    
+    #println("F_imag=$(F_max)")
+    
+    gg_test = real(DLR.matfreq2tau(:fermi, gg_freq, fdlr, fdlr.τ, axis=2))
+    gg_τ = GG_τ(kgrid, fdlr.τ)
+    ind=findmax(abs.(gg_τ-gg_test))[2]
+    println(sum(gg_τ),"\t",sum(gg_test))
+    println("max gg err:$(maximum(abs.(gg_test.-gg_τ))), $(kgrid.grid[ind[1]]), $(fdlr.τ[ind[2]])")
+    p = plot(fdlr.τ[:], gg_τ[ind[1],:]) #, xlim=(xMin,xMax), ylim=(yMin, yMax))
+    p = plot!(fdlr.τ[:], gg_test[ind[1],:])
+    display(p)
+    readline()
+
+  
+
 
     #println("kgrid: $(kgrid.grid)")
     #println("kgrid_bose: $(kgrid_bose.grid)")

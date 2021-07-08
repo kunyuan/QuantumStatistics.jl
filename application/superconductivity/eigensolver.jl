@@ -6,7 +6,7 @@ using QuantumStatistics
 using LinearAlgebra
 using Printf
 #using Gaston
-#using Plots
+using Plots
 
 srcdir = "."
 rundir = isempty(ARGS) ? "." : (pwd()*"/"*ARGS[1])
@@ -513,7 +513,11 @@ function Explicit_Solver(kernal, kernal_bare, kgrid, qgrids, fdlr, bdlr )
         # end
 
         n=n+1
-        println("F: $F[kF_label, :]")
+        #p = plot(fdlr.τ[:], F[kF_label,:]) #, xlim=(xMin,xMax), ylim=(yMin, yMax))
+        #p = plot!(fdlr.τ[:], qgrids[1].grid, kernal_int[1, :, bdlr.size÷2+1])
+        #display(p)
+        #readline()
+        #println("F: $F[kF_label, :]")
         #readline()
         #test dlr err
         # F_test =  DLR.tau2matfreq(:acorr, F, fdlr, fdlr.n, axis=2)
@@ -523,8 +527,13 @@ function Explicit_Solver(kernal, kernal_bare, kgrid, qgrids, fdlr, bdlr )
         # println("err_F_imag=", maximum(abs.(imag.(F_test) )))
         # println("err_F_ratio=",maximum(abs.(real.(F_test) - F)./abs.(F)))
         delta_0_new, delta_new =  calcΔ(F, kernal, kernal_bare, fdlr , kgrid, qgrids)./(-4*π*π)
-        delta_freq = DLR.tau2matfreq(:acorr, delta_new, fdlr, fdlr.n, axis=2)
-
+        delta_freq = real(DLR.tau2matfreq(:acorr, delta_new, fdlr, fdlr.n, axis=2))
+        #p = plot(fdlr.n[:], delta_freq[kF_label,:]) #, xlim=(xMin,xMax), ylim=(yMin, yMax))
+        #p = plot(kgrid.grid, delta_freq[:,1]) #, xlim=(xMin,xMax), ylim=(yMin, yMax))
+        
+        #p = plot!(fdlr.τ[:], qgrids[1].grid, kernal_int[1, :, bdlr.size÷2+1])
+        #display(p)
+        #readline()
         # outFileName = rundir*"/delta_$(WID).dat"
         # f = open(outFileName, "w")
         # for (ki, k) in enumerate(kgrid.grid)
@@ -535,9 +544,9 @@ function Explicit_Solver(kernal, kernal_bare, kgrid, qgrids, fdlr, bdlr )
 
 
 
-        println("Delta0: $delta_0_new[:]")
+        #println("Delta0: $delta_0_new[:]")
         #readline()
-        println("Deltta: $delta_freq[kF_label, :]")
+        #println("Deltta: $delta_freq[kF_label, :]")
         #readline()
         #delta_0_low_new, delta_0_high_new, delta_low_new, delta_high_new = Separation(delta_0_new, delta_new, kgrid, fdlr)
         lamu = dot(delta_new, delta)
@@ -930,7 +939,7 @@ end
 if abspath(PROGRAM_FILE) == @__FILE__
     println("rs=$rs, β=$β, kF=$kF, EF=$EF, mass2=$mass2")
     fdlr = DLR.DLRGrid(:acorr, 10EF, β, 1e-10)
-    fdlr2 = DLR.DLRGrid(:acorr, 100EF, β, 1e-10)
+    fdlr2 = DLR.DLRGrid(:acorr, 10EF, β, 1e-10)
     bdlr = DLR.DLRGrid(:corr, 100EF, β, 1e-10) 
     ########## non-uniform kgrid #############
     # Nk = 16
@@ -959,6 +968,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     #kgrid_double = CompositeGrid(kpanel, 2 * order, :cheb)
     #qgrids_double = [CompositeGrid(QPanel(Nk, kF, maxK, minK, k), 2order, :gaussian) for k in kgrid_double.grid]
     #fdlr2 = DLR.DLRGrid(:acorr, 100EF, β, 1e-10) 
+
 
     kernal2 = real(DLR.matfreq2tau(:corr, kernal_freq, bdlr, fdlr2.τ, axis=3))
     
