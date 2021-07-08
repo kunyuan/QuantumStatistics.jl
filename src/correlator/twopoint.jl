@@ -73,7 +73,7 @@ end
 # end
 
 """
-    LindhardΩnFiniteTemperature(dim::Int, q::T, n::Int, kF::T, β::T, m::T, spin) where {T <: AbstractFloat}
+    LindhardΩnFiniteTemperature(dim::Int, q::T, n::Int, μ::T, kF::T, β::T, m::T, spin) where {T <: AbstractFloat}
 
 Compute the polarization function of free electrons at a given frequency. Relative Accuracy is about ~ 1e-6
 
@@ -81,12 +81,13 @@ Compute the polarization function of free electrons at a given frequency. Relati
 - `dim`: dimension
 - `q`: external momentum, q<1e-4 will be treated as q=0 
 - `n`: externel Matsubara frequency, ωn=2π*n/β
+- `μ`: chemical potential
 - `kF`: Fermi momentum 
 - `β`: inverse temperature
 - `m`: mass
 - `spin` : number of spins
 """
-@inline function LindhardΩnFiniteTemperature(dim::Int, q::T, n::Int, kF::T, β::T, m::T, spin) where {T <: AbstractFloat}
+@inline function LindhardΩnFiniteTemperature(dim::Int, q::T, n::Int, μ::T, kF::T, β::T, m::T, spin) where {T <: AbstractFloat}
     if q < 0.0
         q = -q
     end
@@ -103,7 +104,7 @@ Compute the polarization function of free electrons at a given frequency. Relati
             error("not implemented")
         end
         ω = 2π * n / β
-        ϵ = β * (k^2 - kF^2) / (2m)
+        ϵ = β * (k^2 - μ) / (2m)
 
         p = phase * fermiDirac(ϵ) * m / k / q * log(((q^2 - 2k * q)^2 + 4m^2 * ω^2) / ((q^2 + 2k * q)^2 + 4m^2 * ω^2)) * spin
 
