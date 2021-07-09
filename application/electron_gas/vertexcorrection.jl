@@ -4,7 +4,7 @@ using QuantumStatistics, LinearAlgebra, Random, Printf, BenchmarkTools, Interact
 using Roots, Polylogarithms
 # using ProfileView
 
-const Steps = 1e6
+const Steps = 1e7
 
 include("parameter.jl")
 
@@ -16,8 +16,8 @@ end
 
 @with_kw struct Para
     n::Int = 0 # external Matsubara frequency
-    Qsize::Int = 16
-    extQ::Vector{SVector{3,Float64}} = [@SVector [q, 0.0, 0.0] for q in LinRange(0.0, 3.0 * kF, Qsize)]
+    Qsize::Int = 8
+    extQ::Vector{SVector{3,Float64}} = [@SVector [q, 0.0, 0.0] for q in LinRange(0.0, 16.0 * kF, Qsize)]
     μ::Float64 = chemical_potential(beta) * EF
 end
 
@@ -42,7 +42,7 @@ function integrand(config)
     g4 = Spectral.kernelFermiT(T0 - T2, dot(k1, k1) / (2me) - μ, β)
     v = 8π / (dot(dk, dk) + mass2)
     phase = 1.0 / (2π)^3 / (2π)^3
-    return g1 * g2 * g3 * g4 * v * spin * phase * cos(2π * para.n * T3)
+    return g1 * g2 * g3 * g4 * v * spin * phase * cos(2π * para.n * T3) * (dot(q, q))^2
 end
 
 function measure(config)
