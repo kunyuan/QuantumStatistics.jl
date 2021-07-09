@@ -126,6 +126,8 @@ function calcF(Δ0, Δ, fdlr, k::CompositeGrid)
     Δ = DLR.tau2matfreq(:acorr, Δ, fdlr, fdlr.n, axis=2)
     #F = zeros(ComplexF64, (length(k.grid), fdlr.size))
     F = zeros(ComplexF64, (length(k.grid), fdlr.size))
+    F0 = zeros(ComplexF64, (length(k.grid), fdlr.size))
+    F0a = zeros(ComplexF64, (length(k.grid), fdlr.size))
     for (ki, k) in enumerate(k.grid)
         ω = k^2 / (2me) - EF
         for (ni, n) in enumerate(fdlr.n)
@@ -133,23 +135,27 @@ function calcF(Δ0, Δ, fdlr, k::CompositeGrid)
             nn = -n - 1 # matsubara freqeuncy for the upper G: (2nn+1)π/β = -(2np+1)π/β
             #F[ki, ni] = (Δ[ki, ni] + Δ0[ki]) * Spectral.kernelFermiΩ(nn, ω, β) * Spectral.kernelFermiΩ(np, ω, β)
             F[ki, ni] = (Δ[ki, ni]) * Spectral.kernelFermiΩ(nn, ω, β) * Spectral.kernelFermiΩ(np, ω, β)
-           
+            F0[ki, ni] = (Δ0[ki]) * Spectral.kernelFermiΩ(nn, ω, β) * Spectral.kernelFermiΩ(np, ω, β)
         end
 
     end
     
     #println("F_imag=$(F_max)")
     F = DLR.matfreq2tau(:acorr, F, fdlr, fdlr.τ, axis=2)
+    F0 = DLR.matfreq2tau(:acorr, F0, fdlr, fdlr.τ, axis=2)
     #gg_test = real(DLR.matfreq2tau(:acorr, gg_freq, fdlr, fdlr.τ, axis=2))
     gg_τ = GG_τ(kgrid, fdlr.τ)
     #println("max gg err:$(maximum(abs.(gg_test.-gg_τ)))")
     for (ki, k) in enumerate(k.grid)
         for (ni, n) in enumerate(fdlr.τ)
-            F[ki, ni] = F[ki, ni] + Δ0[ki] * gg_τ[ki, ni]
+            #F[ki, ni] = F[ki, ni] + Δ0[ki] * gg_τ[ki, ni]
+            F0a[ki, ni] = Δ0[ki] * gg_τ[ki, ni]
         end
     end
-   
-    return  real(F)
+    #println("max F0 err:$(maximum(abs.(F0.-F0a)))")
+    #println("max F0:$(maximum(abs.(F0)))")
+
+    return  real(F+F0)
 end
 
 function dH1(k, p, τ)
@@ -331,6 +337,61 @@ function calcΔ(F,  kernal, kernal_bare, fdlr, kgrid, qgrids)
     # F_ins2 = DLR.tau2dlr(:acorr, F, fdlr, axis=2)
     # F_ins2 = DLR.dlr2tau(:acorr, F_ins2, fdlr, [β-1.0e-12,] , axis=2)[:,1]
     # println("F_ins[0] = $((F_ins[1])), F_ins[β]=$((F_ins2[1])) ")
+    for (ki, k) in enumerate(kgrid.grid)
+        
+        kpidx = 1 # panel index of the kgrid
+        head, tail = idx(kpidx, 1, order), idx(kpidx, order, order) 
+        x = @view kgrid.grid[head:tail]
+        w = @view kgrid.wgrid[head:tail]
+
+        for (qi, q) in enumerate(qgrids[ki].grid)
+            
+            if q > kgrid.panel[kpidx + 1]
+                # if q is larger than the end of the current panel, move k panel to the next panel
+                while q > kgrid.panel[kpidx + 1]
+                    kpidx += 1
+                end
+                head, tail = idx(kpidx, 1, order), idx(kpidx, order, order) 
+                x = @view kgrid.grid[head:tail]
+                w = @view kgrid.wgrid[head:tail]
+                @assert kpidx <= kgrid.Np
+            end
+
+            
+            for (τi, τ) in enumerate(fdlr.τ)
+
+                fx = @view F[head:tail, τi] # all F in the same kpidx-th K panel
+                FF = barycheb(order, q, fx, w, x) # the interpolation is independent with the panel length
+
+                wq = qgrids[ki].wgrid[qi]
+                #Δ[ki, τi] += dH1(k, q, τ) * FF * wq
+                Δ[ki, τi] += kernal[ki ,qi ,τi] * FF * wq
+                @assert isfinite(Δ[ki, τi]) "fail Δ at $ki, $τi with $(Δ[ki, τi]), $FF\n $q for $fx\n $x \n $w\n $q < $(kgrid.panel[kpidx + 1])"
+
+                if τi == 1
+                    fx_ins = @view F_ins[head:tail] # all F in the same kpidx-th K panel
+                    FF = barycheb(order, q, fx_ins, w, x) # the interpolation is independent with the panel length
+                    #Δ0[ki] += bare(k, q) * FF * wq
+                    Δ0[ki] += kernal_bare[ki, qi] * FF * wq                    
+                    @assert isfinite(Δ0[ki]) "fail Δ0 at $ki with $(Δ0[ki])"
+                end
+
+            end
+        end
+    end
+    
+    return Δ0, Δ 
+end
+
+function calcΔ_compare(F,F2,  kernal,kernal2,  kernal_bare, fdlr,fdlr2, kgrid, qgrids)
+    
+    Δ0 = zeros(Float64, length(kgrid.grid))
+    Δ = zeros(Float64, (length(kgrid.grid), fdlr.size))
+    order = kgrid.order
+
+    F_ins = DLR.tau2dlr(:acorr, F, fdlr, axis=2)
+    F_ins = DLR.dlr2tau(:acorr, F_ins, fdlr, [1.0e-12,] , axis=2)[:,1]
+
     for (ki, k) in enumerate(kgrid.grid)
         
         kpidx = 1 # panel index of the kgrid

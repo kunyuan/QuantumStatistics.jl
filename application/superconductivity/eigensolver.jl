@@ -436,8 +436,8 @@ end
 
 
 
-function Explicit_Solver(kernal, kernal_bare, kgrid, qgrids, fdlr, bdlr )
-    NN=10000
+function Explicit_Solver(kernal, kernal2, kernal_bare, kgrid, qgrids, fdlr, bdlr )
+    NN=100
     rtol=1e-6
     n=0
     modulus= 1.0
@@ -513,7 +513,7 @@ function Explicit_Solver(kernal, kernal_bare, kgrid, qgrids, fdlr, bdlr )
         # end
 
         n=n+1
-        #p = plot(fdlr.τ[:], F[kF_label,:]) #, xlim=(xMin,xMax), ylim=(yMin, yMax))
+        #p = plot(fdlr.τ[1:15], F[kF_label,1:15]) #, xlim=(xMin,xMax), ylim=(yMin, yMax))
         #p = plot!(fdlr.τ[:], qgrids[1].grid, kernal_int[1, :, bdlr.size÷2+1])
         #display(p)
         #readline()
@@ -528,9 +528,9 @@ function Explicit_Solver(kernal, kernal_bare, kgrid, qgrids, fdlr, bdlr )
         # println("err_F_ratio=",maximum(abs.(real.(F_test) - F)./abs.(F)))
         delta_0_new, delta_new =  calcΔ(F, kernal, kernal_bare, fdlr , kgrid, qgrids)./(-4*π*π)
         delta_freq = real(DLR.tau2matfreq(:acorr, delta_new, fdlr, fdlr.n, axis=2))
-        #p = plot(fdlr.n[:], delta_freq[kF_label,:]) #, xlim=(xMin,xMax), ylim=(yMin, yMax))
+        #p = plot(fdlr.n[1:15], delta_freq[kF_label,1:15]) #, xlim=(xMin,xMax), ylim=(yMin, yMax))
         #p = plot(kgrid.grid, delta_freq[:,1]) #, xlim=(xMin,xMax), ylim=(yMin, yMax))
-        
+        #p = plot(fdlr.τ[:], delta_new[kF_label,:]) #, xlim=(xMin,xMax), ylim=(yMin, yMax))
         #p = plot!(fdlr.τ[:], qgrids[1].grid, kernal_int[1, :, bdlr.size÷2+1])
         #display(p)
         #readline()
@@ -541,6 +541,21 @@ function Explicit_Solver(kernal, kernal_bare, kgrid, qgrids, fdlr, bdlr )
         #         @printf(f, "%32.17g  %32.17g\n",fdlr.n[ni], Δ_freq[ki, ni] + Δ0_final[ki])
         #     end
         # end
+
+        F2 = zeros(Float64, (length(kgrid.grid), fdlr2.size))
+        F2 = DLR.tau2matfreq(:acorr, F, fdlr, fdlr2.n, axis=2)
+        F2 =  DLR.matfreq2tau(:acorr, F2, fdlr2, fdlr2.τ, axis=2)
+        delta_0_new2, delta_new2 =  calcΔ(F2, kernal2, kernal_bare, fdlr2 , kgrid, qgrids)./(-4*π*π)
+        delta_freq2 = real(DLR.tau2dlr(:acorr, delta_new2, fdlr2,  axis=2))
+        delta21 = real(DLR.matfreq2tau(:acorr, delta_freq2, fdlr2, fdlr.τ, axis=2))
+        delta21_freq = real(DLR.tau2dlr(:acorr, delta21, fdlr,  axis=2))
+        #p = plot(fdlr.n[1:15], delta_freq[kF_label,1:15]) #, xlim=(xMin,xMax), ylim=(yMin, yMax))
+        p = plot(fdlr2.ω[1:end], delta_freq2[kF_label,1:end]) #, xlim=(xMin,xMax), ylim=(yMin, yMax))
+        #plot!(p,fdlr.ω[1:15], delta21_freq[kF_label,1:15]) #, xlim=(xMin,xMax), ylim=(yMin, yMax))
+        #p = plot(fdlr.τ[1:10], delta_new[kF_label,1:10]) #, xlim=(xMin,xMax), ylim=(yMin, yMax))
+        #plot!(p,fdlr.τ[1:10], delta21[kF_label,1:10]) #, xlim=(xMin,xMax), ylim=(yMin, yMax))
+        display(p)
+        readline()
 
 
 
@@ -938,9 +953,9 @@ end
 
 if abspath(PROGRAM_FILE) == @__FILE__
     println("rs=$rs, β=$β, kF=$kF, EF=$EF, mass2=$mass2")
-    fdlr = DLR.DLRGrid(:acorr, 10EF, β, 1e-10)
-    fdlr2 = DLR.DLRGrid(:acorr, 10EF, β, 1e-10)
-    bdlr = DLR.DLRGrid(:corr, 100EF, β, 1e-10) 
+    fdlr = DLR.DLRGrid(:acorr, 100EF, β, 1e-12)
+    fdlr2 = DLR.DLRGrid(:acorr, 100EF, β, 1e-12)
+    bdlr = DLR.DLRGrid(:corr, 100EF, β, 1e-12) 
     ########## non-uniform kgrid #############
     # Nk = 16
     # order = 8
@@ -960,8 +975,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
 
     #kernal = dH1_freq(kgrid, qgrids, bdlr, fdlr)
     #kernal = dH1_tau(kgrid, qgrids, fdlr)
-    kernal_bare, kernal_freq = legendre_dc(bdlr, kgrid, qgrids, kpanel_bose, order_int)
-    #kernal_bare, kernal_freq = dH1_freq(kgrid, qgrids, bdlr, fdlr)
+    #kernal_bare, kernal_freq = legendre_dc(bdlr, kgrid, qgrids, kpanel_bose, order_int)
+    kernal_bare, kernal_freq = dH1_freq(kgrid, qgrids, bdlr, fdlr)
     kernal = real(DLR.matfreq2tau(:corr, kernal_freq, bdlr, fdlr.τ, axis=3))
     println(typeof(kernal))
     #err test section
@@ -969,12 +984,20 @@ if abspath(PROGRAM_FILE) == @__FILE__
     #qgrids_double = [CompositeGrid(QPanel(Nk, kF, maxK, minK, k), 2order, :gaussian) for k in kgrid_double.grid]
     #fdlr2 = DLR.DLRGrid(:acorr, 100EF, β, 1e-10) 
 
-
+    kernal_compare = real(DLR.tau2matfreq(:acorr, kernal, fdlr, fdlr2.n, axis=3))
     kernal2 = real(DLR.matfreq2tau(:corr, kernal_freq, bdlr, fdlr2.τ, axis=3))
+    kernal2_compare = real(DLR.tau2matfreq(:acorr, kernal2, fdlr2, fdlr2.n, axis=3))
+
+    println("max diff kernal:$(maximum(abs.(kernal2_compare-kernal_compare)))")
+    println("max kernal:$(maximum(abs.(kernal2_compare)))")
+    p=plot(fdlr2.n[1:30], kernal_compare[kF_label,kF_label,1:30]) #, xlim=(xMin,xMax), ylim=(yMin, yMax))
+    plot!(p,fdlr2.n[1:30], kernal2_compare[kF_label,kF_label,1:30]) #, xlim=(xMin,xMax), ylim=(yMin, yMax))
+    display(p)
+    readline()
     
     #Δ0_final, Δ_final, F = Implicit_Renorm(kernal, kernal_bare,  kgrid, qgrids, fdlr)
     #Δ0_final, Δ_final, F = Explicit_Solver_err(kernal, kernal2, kernal_bare, kgrid, qgrids, fdlr,fdlr2, bdlr)
-    Δ0_final, Δ_final, F = Explicit_Solver(kernal, kernal_bare, kgrid, qgrids, fdlr, bdlr)
+    Δ0_final, Δ_final, F = Explicit_Solver(kernal, kernal2, kernal_bare, kgrid, qgrids, fdlr, bdlr)
     
     #Δ0_final, Δ_final = Explicit_Solver_inherit( kgrid, qgrids, fdlr, fdlr2, bdlr)
     Δ_freq = DLR.tau2matfreq(:acorr, Δ_final, fdlr, fdlr.n, axis=2)
