@@ -131,23 +131,23 @@ function calcF(Δ0, Δ, fdlr, k::CompositeGrid)
         for (ni, n) in enumerate(fdlr.n)
             np = n # matsubara freqeuncy index for the upper G: (2np+1)π/β
             nn = -n - 1 # matsubara freqeuncy for the upper G: (2nn+1)π/β = -(2np+1)π/β
-            #F[ki, ni] = (Δ[ki, ni] + Δ0[ki]) * Spectral.kernelFermiΩ(nn, ω, β) * Spectral.kernelFermiΩ(np, ω, β)
-            F[ki, ni] = (Δ[ki, ni]) * Spectral.kernelFermiΩ(nn, ω, β) * Spectral.kernelFermiΩ(np, ω, β)
+            F[ki, ni] = (Δ[ki, ni] + Δ0[ki]) * Spectral.kernelFermiΩ(nn, ω, β) * Spectral.kernelFermiΩ(np, ω, β)
+            #F[ki, ni] = (Δ[ki, ni]) * Spectral.kernelFermiΩ(nn, ω, β) * Spectral.kernelFermiΩ(np, ω, β)
            
         end
 
     end
     
-    #println("F_imag=$(F_max)")
+    #println("F_imag=$(maximum(imag(F)))")
     F = DLR.matfreq2tau(:acorr, F, fdlr, fdlr.τ, axis=2)
     #gg_test = real(DLR.matfreq2tau(:acorr, gg_freq, fdlr, fdlr.τ, axis=2))
-    gg_τ = GG_τ(kgrid, fdlr.τ)
-    #println("max gg err:$(maximum(abs.(gg_test.-gg_τ)))")
-    for (ki, k) in enumerate(k.grid)
-        for (ni, n) in enumerate(fdlr.τ)
-            F[ki, ni] = F[ki, ni] + Δ0[ki] * gg_τ[ki, ni]
-        end
-    end
+    # gg_τ = GG_τ(kgrid, fdlr.τ)
+    # #println("max gg err:$(maximum(abs.(gg_test.-gg_τ)))")
+    # for (ki, k) in enumerate(k.grid)
+    #     for (ni, n) in enumerate(fdlr.τ)
+    #         F[ki, ni] = F[ki, ni] + Δ0[ki] * gg_τ[ki, ni]
+    #     end
+    # end
    
     return  real(F)
 end
