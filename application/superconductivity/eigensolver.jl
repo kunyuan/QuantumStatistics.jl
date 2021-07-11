@@ -7,6 +7,7 @@ using LinearAlgebra
 using Printf
 #using Gaston
 using Plots
+using Statistics
 
 srcdir = "."
 rundir = isempty(ARGS) ? "." : (pwd()*"/"*ARGS[1])
@@ -234,7 +235,6 @@ function Implicit_Renorm(Δ, Δ_0 ,kernal, kernal_bare, kgrid, qgrids, fdlr )
 
             #lamu = dot(delta_low_new, delta_low)
             lamu = Normalization(delta_0_low, delta_0_low_new, kgrid )
-            #println(lamu)
             delta_0_low_new = delta_0_low_new+shift*delta_0_low
             delta_low_new = delta_low_new+shift*delta_low
             modulus = Normalization(delta_0_low_new, delta_0_low_new, kgrid)
@@ -264,13 +264,12 @@ function Implicit_Renorm(Δ, Δ_0 ,kernal, kernal_bare, kgrid, qgrids, fdlr )
     # F_accm=zeros(Float64, (length(kgrid.grid), fdlr.size))
     # F=calcF(delta_0, delta, fdlr, kgrid)
     # F_low, F_high=Separation_F(F, kgrid, fdlr)
-    # F_low_new, F_high_new=Separation_F(F, kgrid, fdlr)    
     # while(n<NN && err>rtol)
     #     n=n+1
-    #     delta_0_new, delta_new = calcΔ(F, kernal,kernal_bare, fdlr , kgrid, qgrids)./(-4*π*π)
+    #     delta_0_new, delta_new = calcΔ(F, kernal, fdlr , kgrid, qgrids)./(-4*π*π)
     #     F_new=calcF(delta_0_new, delta_new, fdlr, kgrid)
     #     F_low_new, F_high_new = Separation_F(F_new, kgrid, fdlr)
-    #     #println(Looptype)
+    #     println(Looptype)
     #     if(Looptype==0)
     #         accm=accm+1
     #         F_accm=F_accm+F_high_new
@@ -280,9 +279,9 @@ function Implicit_Renorm(Δ, Δ_0 ,kernal, kernal_bare, kgrid, qgrids, fdlr )
     #         F_low_new=F_low_new+shift*F_low
     #         modulus=sqrt(dot(F_low_new, F_low_new))
     #         F_low=F_low_new/modulus
-    #         #println(lamu)
+    #         println(lamu)
     #     end
-    #     F = F_low.+F_high
+    #     F = F_low+F_high
     #     if(n%n_change2==n_change)
     #         Looptype=(Looptype+1)%2
     #     elseif(n%n_change2==0)
@@ -298,20 +297,145 @@ function Implicit_Renorm(Δ, Δ_0 ,kernal, kernal_bare, kgrid, qgrids, fdlr )
     f = open(outFileName, "w")
     @printf(f, "%32.17g\n", lamu)
     #F=calcF(delta_0, delta, fdlr, kgrid)
-    #F = F_low_new .+ F_high
     #delta_0_new, delta_new =  calcΔ(F, kernal, kernal_bare, fdlr , kgrid, qgrids)./(-4*π*π)
-    #delta_freq = DLR.tau2matfreq(:acorr, delta_new, fdlr, fdlr.n, axis=2)
-    # p = plot(kgrid.grid, delta_0_new + real(delta_freq[:,1])) #, xlim=(xMin,xMax), ylim=(yMin, yMax))
-    # #p = plot!(kgrid.grid, delta_freq[:,1])
-    # display(p)
-    # readline()
-    # p = plot(fdlr.n, real(delta_freq[kF_label,:])) #, xlim=(xMin,xMax), ylim=(yMin, yMax))
-    # #p = plot!(kgrid.grid, delta_freq[:,1])
-    # display(p)
-    # readline()
+
+
     return delta_0, delta, F, lamu
 end
 
+function Implicit_Renorm_Test_Mom(kernal, kernal_bare, kgrid, qgrids, fdlr, kgrid2, qgrids2 )
+    NN=100000
+    rtol=1e-6
+    Looptype=1
+    n=0
+    err=1.0 
+    accm=0
+    shift=5.0
+    lamu0=-2.0
+    lamu=0.0
+    n_change=10  #steps of power method iteration in one complete loop
+    n_change2=10+10 #total steps of one complete loop
+
+    delta = zeros(Float64, (length(kgrid.grid), fdlr.size))
+    for (ki, k) in enumerate(kgrid.grid)
+        ω = k^2 / (2me) - EF
+        for (ni, n) in enumerate(fdlr.n)
+            np = n # matsubara freqeuncy index for the upper G: (2np+1)π/β
+            nn = -n - 1 # matsubara freqeuncy for the upper G: (2nn+1)π/β = -(2np+1)π/β
+            # F[ki, ni] = (Δ[ki, ni] + Δ0[ki]) * Spectral.kernelFermiΩ(nn, ω, β) * Spectral.kernelFermiΩ(np, ω, β)
+            delta[ki, ni] =  Spectral.kernelFermiΩ(nn, ω, β) * Spectral.kernelFermiΩ(np, ω, β)
+        end
+    end
+
+    delta_0 = zeros(Float64, length(kgrid.grid)) .+ 1.0
+    #Separate Delta
+    d_0_accm=zeros(Float64, length(kgrid.grid))
+    d_accm=zeros(Float64, (length(kgrid.grid), fdlr.size))
+    delta_0_low, delta_0_high, delta_low, delta_high = Separation(delta_0, delta, kgrid, fdlr)
+    F = zeros(Float64, (length(kgrid.grid), fdlr.size))
+    while(n<NN && err>rtol)
+        F=calcF(delta_0, delta, fdlr, kgrid)
+        n=n+1
+        delta_0_new, delta_new =  calcΔ(F, kernal, kernal_bare, fdlr , kgrid, qgrids)./(-4*π*π)
+        #delta_new = real(DLR.tau2matfreq(:acorr, delta_new, fdlr, fdlr.n, axis=2))        
+        delta_0_low_new, delta_0_high_new, delta_low_new, delta_high_new = Separation(delta_0_new, delta_new, kgrid, fdlr)
+
+        # test mom interp for F
+        diffF=testMomInterp(F, fdlr, kgrid, qgrids, kgrid2, qgrids2)
+        val, loc = findmax(abs.(diffF))
+        println("Finterperr:",[kgrid.grid[loc[1]], fdlr.τ[loc[2]], F[loc[1],loc[2]]], "\t", val)
+        println("Fmax:",maximum(F), "\t avgerr", mean(abs.(diffF)))
+        p = plot(kgrid.grid, F[:,loc[2]]) #, xlim=(xMin,xMax), ylim=(yMin, yMax))
+        plot!(p, kgrid.grid, (F+diffF)[:,loc[2]]) #, xlim=(xMin,xMax), ylim=(yMin, yMax))
+        plot!(p, kgrid.grid[loc[1]:loc[1]], F[loc[1]:loc[1], loc[2]]) #, xlim=(xMin,xMax), ylim=(yMin, yMax))
+        display(p)
+        readline()
+
+
+        if(Looptype==0)
+            accm=accm+1
+            d_0_accm = d_0_accm + delta_0_high_new 
+            d_accm = d_accm + delta_high_new
+            delta_0_high = d_0_accm ./ accm
+            delta_high = d_accm ./ accm
+        else
+            # lamu = dot(delta_0_low_new, delta_0_low)
+            # delta_0_low_new = delta_0_low_new+shift*delta_0_low
+            # delta_low_new = delta_low_new+shift*delta_low
+            # modulus = sqrt(dot(delta_0_low_new, delta_0_low_new))
+            # delta_0_low = delta_0_low_new ./ modulus
+            # delta_low = delta_low_new ./ modulus
+
+            #lamu = dot(delta_low_new, delta_low)
+            lamu = Normalization(delta_0_low, delta_0_low_new, kgrid )
+            println(lamu)
+            delta_0_low_new = delta_0_low_new+shift*delta_0_low
+            delta_low_new = delta_low_new+shift*delta_low
+            modulus = Normalization(delta_0_low_new, delta_0_low_new, kgrid)
+            @assert modulus>0
+            modulus = sqrt(modulus)
+            delta_0_low = delta_0_low_new ./ modulus
+            delta_low = delta_low_new ./ modulus
+            #println(lamu)
+        end
+        delta_0 = delta_0_low .+ delta_0_high
+        delta = delta_low .+ delta_high
+        if(n%n_change2==n_change)
+            Looptype=(Looptype+1)%2
+        elseif(n%n_change2==0)
+            accm = 0
+            d_accm = d_accm .* 0
+            d_0_accm = d_0_accm .* 0
+            err=abs(lamu-lamu0)
+            lamu0=lamu
+            println(lamu)
+            Looptype=(Looptype+1)%2
+        end
+        
+    end
+
+    #Separate F
+    # F_accm=zeros(Float64, (length(kgrid.grid), fdlr.size))
+    # F=calcF(delta_0, delta, fdlr, kgrid)
+    # F_low, F_high=Separation_F(F, kgrid, fdlr)
+    # while(n<NN && err>rtol)
+    #     n=n+1
+    #     delta_0_new, delta_new = calcΔ(F, kernal, fdlr , kgrid, qgrids)./(-4*π*π)
+    #     F_new=calcF(delta_0_new, delta_new, fdlr, kgrid)
+    #     F_low_new, F_high_new = Separation_F(F_new, kgrid, fdlr)
+    #     println(Looptype)
+    #     if(Looptype==0)
+    #         accm=accm+1
+    #         F_accm=F_accm+F_high_new
+    #         F_high=F_accm./accm
+    #     else
+    #         lamu=dot(F_low, F_low_new)
+    #         F_low_new=F_low_new+shift*F_low
+    #         modulus=sqrt(dot(F_low_new, F_low_new))
+    #         F_low=F_low_new/modulus
+    #         println(lamu)
+    #     end
+    #     F = F_low+F_high
+    #     if(n%n_change2==n_change)
+    #         Looptype=(Looptype+1)%2
+    #     elseif(n%n_change2==0)
+    #         accm=0
+    #         F_accm=0*F_accm
+    #         err=abs(lamu-lamu0)
+    #         lamu0=lamu
+    #         println(lamu)
+    #         Looptype=(Looptype+1)%2
+    #     end
+    # end
+    outFileName = rundir*"/flow_$(WID).dat"
+    f = open(outFileName, "w")
+    @printf(f, "%32.17g\n", lamu)
+    #F=calcF(delta_0, delta, fdlr, kgrid)
+    #delta_0_new, delta_new =  calcΔ(F, kernal, kernal_bare, fdlr , kgrid, qgrids)./(-4*π*π)
+
+
+    return delta_0, delta, F
+end
 
 
 
@@ -820,7 +944,7 @@ end
 if abspath(PROGRAM_FILE) == @__FILE__
     println("rs=$rs, β=$β, kF=$kF, EF=$EF, mass2=$mass2")
     fdlr = DLR.DLRGrid(:acorr, 100EF, β, 1e-10)
-    fdlr2 = DLR.DLRGrid(:acorr, 10EF, β, 1e-10)
+    fdlr2 = DLR.DLRGrid(:acorr, 100EF, β, 1e-10)
     bdlr = DLR.DLRGrid(:corr, 100EF, β, 1e-10) 
     ########## non-uniform kgrid #############
     # Nk = 16
@@ -834,6 +958,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
     kpanel_bose = KPanel(2Nk, 2*kF, 2.1*maxK, minK/100.0)
     kgrid = CompositeGrid(kpanel, order, :cheb)
     qgrids = [CompositeGrid(QPanel(Nk, kF, maxK, minK, k), order, :gaussian) for k in kgrid.grid] # qgrid for each k in kgrid.grid
+    # kgrid2 = CompositeGrid(kpanel, order÷2, :cheb)
+    # qgrids2 = [CompositeGrid(QPanel(Nk, kF, maxK, minK, k), order÷2, :gaussian) for k in kgrid.grid] # qgrid for each k
     const kF_label = searchsortedfirst(kgrid.grid, kF)
     println("kf_label:$(kF_label), $(kgrid.grid[kF_label])")
     println("kgrid number: $(length(kgrid.grid))")
@@ -846,9 +972,9 @@ if abspath(PROGRAM_FILE) == @__FILE__
     kernal = real(DLR.matfreq2tau(:corr, kernal_freq, bdlr, fdlr.τ, axis=3))
     println(typeof(kernal))
     #err test section
-    kpanel2 =  KPanel(2*Nk, kF, maxK, minK)
-    kgrid_double = CompositeGrid(kpanel2, order, :cheb)
-    qgrids_double = [CompositeGrid(QPanel(2*Nk, kF, maxK, minK, k), order, :gaussian) for k in kgrid_double.grid]
+    kpanel2 =  KPanel(Nk, kF, maxK, minK)
+    kgrid_double = CompositeGrid(kpanel2, 2*order, :cheb)
+    qgrids_double = [CompositeGrid(QPanel(Nk, kF, maxK, minK, k), 2*order, :gaussian) for k in kgrid_double.grid]
     #fdlr2 = DLR.DLRGrid(:acorr, 100EF, β, 1e-10) 
 
     kernal_bare2, kernal_double = legendre_dc(bdlr, kgrid_double, qgrids_double, kpanel_bose, order_int)

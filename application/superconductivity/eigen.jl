@@ -349,6 +349,63 @@ function bare(k, p)
 end
 
 
+function testMomInterp(F, fdlr, kgrid, qgrids, kgrid2, qgrids2)
+    F2 = zeros(Float64,(length(kgrid2.grid), fdlr.size))
+    F21 = zeros(Float64,(length(kgrid.grid), fdlr.size))
+
+    order = kgrid.order
+    for (τi, τ) in enumerate(fdlr.τ)
+        kpidx = 1
+        head, tail = idx(kpidx, 1, order), idx(kpidx, order, order) 
+        x = @view kgrid.grid[head:tail]
+        w = @view kgrid.wgrid[head:tail]
+        for (qi, q) in enumerate(kgrid2.grid)
+            if q > kgrid.panel[kpidx + 1]
+                # if q is larger than the end of the current panel, move k panel to the next panel
+                while q > kgrid.panel[kpidx + 1]
+                    kpidx += 1
+                end
+                head, tail = idx(kpidx, 1, order), idx(kpidx, order, order) 
+                x = @view kgrid.grid[head:tail]
+                w = @view kgrid.wgrid[head:tail]
+                @assert kpidx <= kgrid.Np
+            end
+            fx = @view F[head:tail, τi] # all F in the same kpidx-th K panel
+            FF = barycheb(order, q, fx, w, x) # the interpolation is independent with the panel length
+
+            F2[qi, τi] = FF
+        end
+    end
+
+    order = kgrid2.order
+    for (τi, τ) in enumerate(fdlr.τ)
+        kpidx = 1
+        head, tail = idx(kpidx, 1, order), idx(kpidx, order, order) 
+        x = @view kgrid.grid[head:tail]
+        w = @view kgrid.wgrid[head:tail]
+        for (qi, q) in enumerate(kgrid.grid)
+            if q > kgrid2.panel[kpidx + 1]
+                # if q is larger than the end of the current panel, move k panel to the next panel
+                while q > kgrid2.panel[kpidx + 1]
+                    kpidx += 1
+                end
+                head, tail = idx(kpidx, 1, order), idx(kpidx, order, order) 
+                x = @view kgrid2.grid[head:tail]
+                w = @view kgrid2.wgrid[head:tail]
+                @assert kpidx <= kgrid2.Np
+            end
+            fx = @view F2[head:tail, τi] # all F in the same kpidx-th K panel
+            FF = barycheb(order, q, fx, w, x) # the interpolation is independent with the panel length
+
+            F21[qi, τi] = FF
+        end
+    end
+
+    return (F21-F)
+end
+
+        
+
 """
 Calculate Δ function in k grid
 
