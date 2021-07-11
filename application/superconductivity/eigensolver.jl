@@ -846,8 +846,9 @@ if abspath(PROGRAM_FILE) == @__FILE__
     kernal = real(DLR.matfreq2tau(:corr, kernal_freq, bdlr, fdlr.τ, axis=3))
     println(typeof(kernal))
     #err test section
-    kgrid_double = CompositeGrid(kpanel, 2 * order, :cheb)
-    qgrids_double = [CompositeGrid(QPanel(Nk, kF, maxK, minK, k), 2*order, :gaussian) for k in kgrid_double.grid]
+    kpanel2 =  KPanel(2*Nk, kF, maxK, minK)
+    kgrid_double = CompositeGrid(kpanel2, order, :cheb)
+    qgrids_double = [CompositeGrid(QPanel(2*Nk, kF, maxK, minK, k), order, :gaussian) for k in kgrid_double.grid]
     #fdlr2 = DLR.DLRGrid(:acorr, 100EF, β, 1e-10) 
 
     kernal_bare2, kernal_double = legendre_dc(bdlr, kgrid_double, qgrids_double, kpanel_bose, order_int)

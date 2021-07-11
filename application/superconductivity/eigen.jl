@@ -111,6 +111,43 @@ function Composite_int(k, p, n, grid_int)
     return sum_bare, sum
 end
 
+
+function Composite_int_kf(n,  kpanel_bose, int_order)
+    g = e0^2
+    k = kF-1e-6
+    p = kF
+    l_size = 40
+    sum = zeros(Float64, l_size)
+    sum_bare =  zeros(Float64, l_size)
+    l_array = collect(0:1:l_size-1)
+    grid_int = build_int(k, p ,kpanel_bose, int_order)
+    for (qi, q) in enumerate(grid_int.grid)
+        legendre_x = (k^2 + p^2 - q^2)/2/k/p
+        if(abs(abs(legendre_x)-1)<1e-12)
+            legendre_x = sign(legendre_x)*1
+        end
+        wq = grid_int.wgrid[qi]
+        for l in 1:l_size
+            sum[l] += Pl(legendre_x, l-1)*4*π*g*q/(q^2+mass2)*RPA(q, n) * wq
+            #sum += q*Pl(legendre_x, channel)*FT_RPA(q, n) * wq
+            #sum += q*Pl(legendre_x, channel)*dH1_bose(q, n) * wq
+            sum_bare[l] += Pl(legendre_x, l-1)*4*π*g*q/(q^2+mass2) * wq
+
+
+        end
+    end
+    p = plot(l_array, l_array .* (sum+sum_bare)  ) #, xlim=(xMin,xMax), ylim=(yMin, yMax))
+    #p = plot!(fdlr.τ[:], gg_test[ind[1],:])
+    display(p)
+    readline()
+
+
+    return sum_bare, sum
+end
+
+
+
+
 """
 calcF(Δ, kgrid, fdlr)
 
@@ -266,6 +303,8 @@ function RPA(q, n)
             end
             Π0 = Π / q^2
             kernal = - Π0/( 1.0/4/π/g  + Π0 )
+            #kernal = - Π/( (q^2+mass2)/4/π/g  + Π )
+
         end
        
         #kernal = Π
@@ -451,32 +490,32 @@ if abspath(PROGRAM_FILE) == @__FILE__
     qgrids = [CompositeGrid(QPanel(Nk, kF, maxK, minK, k), order, :gaussian) for k in kgrid.grid] # qgrid for each k in kgrid.grid
     const kF_label = searchsortedfirst(kgrid.grid, kF)
 
-    gg_freq = zeros(ComplexF64, (length(kgrid.grid), fdlr.size))
-    for (ki, k) in enumerate(kgrid.grid)
-        ω = k^2 / (2me) - EF
-        for (ni, n) in enumerate(fdlr.n)
-            np = n # matsubara freqeuncy index for the upper G: (2np+1)π/β
-            nn = -n - 1 # matsubara freqeuncy for the upper G: (2nn+1)π/β = -(2np+1)π/β
-            #F[ki, ni] = (Δ[ki, ni] + Δ0[ki]) * Spectral.kernelFermiΩ(nn, ω, β) * Spectral.kernelFermiΩ(np, ω, β)
-            gg_freq[ki, ni] = Spectral.kernelFermiΩ(nn, ω, β) * Spectral.kernelFermiΩ(np, ω, β)
+    # gg_freq = zeros(ComplexF64, (length(kgrid.grid), fdlr.size))
+    # for (ki, k) in enumerate(kgrid.grid)
+    #     ω = k^2 / (2me) - EF
+    #     for (ni, n) in enumerate(fdlr.n)
+    #         np = n # matsubara freqeuncy index for the upper G: (2np+1)π/β
+    #         nn = -n - 1 # matsubara freqeuncy for the upper G: (2nn+1)π/β = -(2np+1)π/β
+    #         #F[ki, ni] = (Δ[ki, ni] + Δ0[ki]) * Spectral.kernelFermiΩ(nn, ω, β) * Spectral.kernelFermiΩ(np, ω, β)
+    #         gg_freq[ki, ni] = Spectral.kernelFermiΩ(nn, ω, β) * Spectral.kernelFermiΩ(np, ω, β)
             
-        end
+    #     end
 
-    end
+    # end
     
-    #println("F_imag=$(F_max)")
+    # #println("F_imag=$(F_max)")
     
-    gg_test = real(DLR.matfreq2tau(:fermi, gg_freq, fdlr, fdlr.τ, axis=2))
-    gg_τ = GG_τ(kgrid, fdlr.τ)
-    ind=findmax(abs.(gg_τ-gg_test))[2]
-    println(sum(gg_τ),"\t",sum(gg_test))
-    println("max gg err:$(maximum(abs.(gg_test.-gg_τ))), $(kgrid.grid[ind[1]]), $(fdlr.τ[ind[2]])")
-    p = plot(fdlr.τ[:], gg_τ[ind[1],:]) #, xlim=(xMin,xMax), ylim=(yMin, yMax))
-    p = plot!(fdlr.τ[:], gg_test[ind[1],:])
-    display(p)
-    readline()
+    # gg_test = real(DLR.matfreq2tau(:fermi, gg_freq, fdlr, fdlr.τ, axis=2))
+    # gg_τ = GG_τ(kgrid, fdlr.τ)
+    # ind=findmax(abs.(gg_τ-gg_test))[2]
+    # println(sum(gg_τ),"\t",sum(gg_test))
+    # println("max gg err:$(maximum(abs.(gg_test.-gg_τ))), $(kgrid.grid[ind[1]]), $(fdlr.τ[ind[2]])")
+    # p = plot(fdlr.τ[:], gg_τ[ind[1],:]) #, xlim=(xMin,xMax), ylim=(yMin, yMax))
+    # p = plot!(fdlr.τ[:], gg_test[ind[1],:])
+    # display(p)
+    # readline()
 
-  
+    Composite_int_kf(1, kpanel_bose, order_int)
 
 
     #println("kgrid: $(kgrid.grid)")
@@ -489,7 +528,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     test_RPA2 = RPA(q_test , 0)
     test_RPA = RPA(q_test , 1)  #/ q_test^2
     println("$(test_RPA),$(test_RPA2)")
-    kernal_bare, kernal_int = legendre_dc(bdlr, kgrid, qgrids, kpanel_bose, 2*order)
+    kernal_bare, kernal_int = legendre_dc(bdlr, kgrid, qgrids, kpanel_bose, order_int)
     kernal =  real(DLR.matfreq2tau(:corr, kernal_int, bdlr, fdlr.τ, axis=3))
     #kernal_int_double = legendre_dc(bdlr, kgrid, qgrids, kpanel_bose, 4*order)
     #kernal_bare, kernal = dH1_freq(kgrid, qgrids, bdlr, fdlr)

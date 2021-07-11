@@ -14,8 +14,8 @@ const rs = 4.0
 const e0 = sqrt(rs*2.0/(9π/4.0)^(1.0/3))  #sqrt(2) electric charge
 const kF = 1.0  #(dim == 3) ? (9π / (2spin))^(1 / 3) / rs : sqrt(4 / spin) / rs
 const EF = 1.0     #kF^2 / (2me)
-const β = 1.0/0.0024 / kF^2
-const mass2 = 0.0
+const β = 1.0/500 / kF^2
+const mass2 = 0.00
 const mom_sep = 0.5
 const freq_sep = 10
 const channel = 0
