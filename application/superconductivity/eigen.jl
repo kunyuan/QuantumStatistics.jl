@@ -3,7 +3,7 @@ using QuantumStatistics
 using LegendrePolynomials
 using Printf
 # using Gaston
-#using Plots
+using Plots
 
 srcdir = "."
 rundir = isempty(ARGS) ? "." : (pwd()*"/"*ARGS[1])
@@ -119,6 +119,34 @@ function legendre_dc(bdlr, kgrid, qgrids, kpanel_bose, int_order)
     return kernal_bare,  kernal
 end
 
+function legendre_dc_2D(nfermi_grid, kgrid, qgrids, kpanel_bose, int_order)
+    kernal_bare = zeros(Float64, (length(kgrid.grid), length(qgrids[1].grid)))
+    kernal = zeros(Float64, (length(kgrid.grid), length(qgrids[1].grid), length(nfermi_grid), length(nfermi_grid) ))
+      for (ki, k) in enumerate(kgrid.grid)
+        for (pi, p) in enumerate(qgrids[ki].grid)
+            for (ni, n) in enumerate(nfermi_grid)
+                for (mi,m) in enumerate(nfermi_grid)
+                    if abs(k - p) > EPS
+                        grid_int = build_int(k, p ,kpanel_bose, int_order)
+                        kernal_bare[ki,pi], kernal[ki,pi,ni,mi] = Composite_int(k, p, n-m, grid_int) .+ Composite_int(k, p, n+m, grid_int)
+        #                kernal_bare2[ki,pi], kernal2[ki,pi,ni,mi] = Composite_int(k, p, n+m, grid_int)
+         #               kernal_bare[ki,pi] += kernal_bare2[ki,pi]
+          #              kernal[ki,pi,ni,mi] += kernal2[ki,pi,ni,mi]
+
+                        @assert isfinite(kernal[ki,pi,ni,mi]) "fail kernal at $ki,$pi,$ni, with $(kernal[ki,pi,ni])"
+                    else
+                        kernal_bare[ki,pi] = 0
+                        kernal[ki,pi,ni,mi] = 0
+                    end
+                end
+            end
+        end
+    end
+    return kernal_bare, kernal
+end
+
+
+
 function Composite_int(k, p, n, grid_int)
     sum = 0
     sum_bare = 0
@@ -130,6 +158,9 @@ function Composite_int(k, p, n, grid_int)
         end
         wq = grid_int.wgrid[qi]
         sum += Pl(legendre_x, channel)*4*π*g/q*RPA(q, n) * wq
+        if(test_KL == true)
+            sum += -Pl(legendre_x, channel)*4*π*g/q*RPA_mass(q, n) * wq            
+        end
         #sum += Pl(legendre_x, channel)*4*π*g/q*KO(q, n) * wq        
         #sum += q*Pl(legendre_x, channel)*FT_RPA(q, n) * wq
         #sum += q*Pl(legendre_x, channel)*dH1_bose(q, n) * wq
@@ -139,36 +170,49 @@ function Composite_int(k, p, n, grid_int)
 end
 
 
-function Composite_int_kf(n,  kpanel_bose, int_order)
+function Composite_int_kf( kpanel_bose, int_order)
     g = e0^2
     k = kF-1e-6
     p = kF
     l_size = 40
-    sum = zeros(Float64, l_size)
-    sum_bare =  zeros(Float64, l_size)
+   
     l_array = collect(0:1:l_size-1)
     grid_int = build_int(k, p ,kpanel_bose, int_order)
-    for (qi, q) in enumerate(grid_int.grid)
-        legendre_x = (k^2 + p^2 - q^2)/2/k/p
-        if(abs(abs(legendre_x)-1)<1e-12)
-            legendre_x = sign(legendre_x)*1
-        end
-        wq = grid_int.wgrid[qi]
-        for l in 1:l_size
-            sum[l] += Pl(legendre_x, l-1)*4*π*g*q/(q^2+mass2)*RPA(q, n) * wq
-            #sum += q*Pl(legendre_x, channel)*FT_RPA(q, n) * wq
-            #sum += q*Pl(legendre_x, channel)*dH1_bose(q, n) * wq
-            sum_bare[l] += Pl(legendre_x, l-1)*4*π*g*q/(q^2+mass2) * wq
+    sum = zeros(Float64, l_size)
+    sum_bare =  zeros(Float64, l_size)
+    pic = plot()
+    for n in 1:5
+    #n=0
+        for (qi, q) in enumerate(grid_int.grid)
+            legendre_x = (k^2 + p^2 - q^2)/2/k/p
+            if(abs(abs(legendre_x)-1)<1e-12)
+                legendre_x = sign(legendre_x)*1
+            end
+            wq = grid_int.wgrid[qi]
+            for l in 1:l_size
+                sum[l] += Pl(legendre_x, l-1)*4*π*g/q*RPA_mass(q, n) * wq
+                if(test_KL == true)
+                    sum[l] += -Pl(legendre_x, l-1)*4*π*g/q*RPA(q, n) * wq            
+                end                
+                #sum += q*Pl(legendre_x, channel)*FT_RPA(q, n) * wq
+                #sum += q*Pl(legendre_x, channel)*dH1_bose(q, n) * wq
+                sum_bare[l] += Pl(legendre_x, l-1)*4*π*g*q/(q^2) * wq
 
 
+            end
         end
+     if(n==1)
+            pic = plot!(l_array[6:end], (l_array.^0 .* (sum .+0* sum_bare))[6:end]  ) #, xlim=(xMin,xMax), ylim=(yMin, yMax))
+        else
+            pic = plot!(l_array[6:end], (l_array.^0 .* (sum .+0* sum_bare))[6:end]  ) #, xlim=(xMin,xMax), ylim=(yMin, yMax))
+        end
+     sum = 0*sum
+     sum_bare = 0 *sum_bare
+    
+        
     end
-    p = plot(l_array[6:end], (l_array.^4 .* (sum+sum_bare))[6:end]  ) #, xlim=(xMin,xMax), ylim=(yMin, yMax))
-    #p = plot!(fdlr.τ[:], gg_test[ind[1],:])
-    display(p)
+    display(pic)
     readline()
-
-
     return sum_bare, sum
 end
 
@@ -299,6 +343,8 @@ end
 function RPA(q, n)
     g = e0^2
     kernal = 0.0
+    Π = 0.0
+    Π_r= 0.0
     if abs(q) > EPS 
         x = q/2/kF
         ω_n = 2*π*n/β
@@ -311,11 +357,7 @@ function RPA(q, n)
             else
                 Π = me*kF/2/π^2
             end
-            if(test_KL == false)
-                kernal = - Π/( q^2/4/π/g  + Π )*(1-exp(-(q-2*kF)^2/mom_sep2^2) )
-            else
-                kernal = - Π/( q^2/4/π/g  + Π )*exp(-(q-2*kF)^2/mom_sep2^2)
-            end
+            kernal = - Π/( q^2/4/π/g  + Π )                 
         else
             if abs(q - 2*kF) > EPS
                 theta = atan( 2*y/(y^2+x^2-1) )
@@ -323,21 +365,18 @@ function RPA(q, n)
                     theta = theta + π
                 end
                 @assert theta >= 0 && theta<= π
-                Π = me*kF/2/π^2*(1 + (1 -x^2 + y^2)*log1p(4*x/((1-x)^2+y^2))/4/x - y*theta)                       
+                Π = me*kF/2/π^2 * (1 + (1 -x^2 + y^2)*log1p(4*x/((1-x)^2+y^2))/4/x - y*theta)
             else
                 theta = atan( 2/y )
                 if theta < 0
                     theta = theta + π
                 end
                 @assert theta >= 0 && theta<= π
-                Π = me*kF/2/π^2*(1 + y^2*log1p(4/y^2)/4 - y*theta)                       
+                Π = me*kF/2/π^2*(1 + y^2*log1p(4/(y^2))/4 - y*theta)
             end
             Π0 = Π / q^2
-            if(test_KL == false)
-                kernal = - Π0/( 1.0/4/π/g  + Π0 )*(1-exp(-(q-2*kF)^2/mom_sep2^2) )
-            else
-                kernal = - Π0/( 1.0/4/π/g  + Π0 )*exp(-(q-2*kF)^2/mom_sep2^2)
-            end
+            kernal = - Π0/( 1.0/4/π/g  + Π0 )                 
+          
             #kernal = - Π/( (q^2+mass2)/4/π/g  + Π )
 
         end
@@ -350,6 +389,58 @@ function RPA(q, n)
 
     return kernal
 end
+
+function RPA_mass(q, n)
+    g = e0^2
+    kernal = 0.0
+    Π = 0.0
+    Π_r= 0.0
+    if abs(q) > EPS 
+        x = q/2/kF
+        ω_n = 2*π*n/β
+        y = me*ω_n/q/kF
+        
+        
+        if n == 0
+            if abs(q - 2*kF) > EPS
+                Π_r = me*kF/2/π^2*(1 + (1 -x^2)*log1p(4*x/((1-x)^2+mass2*exp(-(q-2*kF)^2/mom_sep2^2)))/4/x)
+            else
+                Π_r = me*kF/2/π^2
+            end
+            kernal = - Π_r/( q^2/4/π/g  + Π_r )
+          else
+            if abs(q - 2*kF) > EPS
+                theta = atan( 2*y/(y^2+x^2-1) )
+                if theta < 0
+                    theta = theta + π
+                end
+                @assert theta >= 0 && theta<= π
+                Π_r= me*kF/2/π^2*(1 + (1 -x^2 + y^2)*log1p(4*x/((1-x)^2+y^2+mass2*exp(-(q-2*kF)^2/mom_sep2^2)))/4/x - y*theta)
+            else
+                theta = atan( 2/y )
+                if theta < 0
+                    theta = theta + π
+                end
+                @assert theta >= 0 && theta<= π
+                Π_r = me*kF/2/π^2*(1 + y^2*log1p(4/(y^2+mass2*exp(-(q-2*kF)^2/mom_sep2^2)))/4 - y*theta)
+            end
+            Π0_r = Π_r / q^2
+            kernal = - Π0_r/( 1.0/4/π/g  + Π0_r )
+            
+            #kernal = - Π/( (q^2+mass2)/4/π/g  + Π )
+
+        end
+       
+        #kernal = Π
+    else
+        kernal = 0
+        
+    end
+
+    return kernal
+end
+
+
 
 
 function KO(q, n)
@@ -571,6 +662,73 @@ function calcΔ(F,  kernal, kernal_bare, fdlr, kgrid, qgrids)
 end
 
 
+
+
+function calcΔ_freq(F,  kernal, kernal_bare,nfermi_grid, kgrid, qgrids)
+    
+    #Δ0 = zeros(Float64, length(kgrid.grid))
+    Δ = zeros(Float64, (length(kgrid.grid), length(nfermi_grid)))
+    order = kgrid.order
+
+    # F_ins = DLR.tau2dlr(:acorr, F, fdlr, axis=2)
+    # F_ins = DLR.dlr2tau(:acorr, F_ins, fdlr, [1.0e-12,] , axis=2)[:,1]
+
+    # F_ins2 = DLR.tau2dlr(:acorr, F, fdlr, axis=2)
+    # F_ins2 = DLR.dlr2tau(:acorr, F_ins2, fdlr, [β-1.0e-12,] , axis=2)[:,1]
+    # println("F_ins[0] = $((F_ins[1])), F_ins[β]=$((F_ins2[1])) ")
+    for (ki, k) in enumerate(kgrid.grid)
+        
+        kpidx = 1 # panel index of the kgrid
+        head, tail = idx(kpidx, 1, order), idx(kpidx, order, order) 
+        x = @view kgrid.grid[head:tail]
+        w = @view kgrid.wgrid[head:tail]
+
+        for (qi, q) in enumerate(qgrids[ki].grid)
+            
+            if q > kgrid.panel[kpidx + 1]
+                # if q is larger than the end of the current panel, move k panel to the next panel
+                while q > kgrid.panel[kpidx + 1]
+                    kpidx += 1
+                end
+                head, tail = idx(kpidx, 1, order), idx(kpidx, order, order) 
+                x = @view kgrid.grid[head:tail]
+                w = @view kgrid.wgrid[head:tail]
+                @assert kpidx <= kgrid.Np
+            end
+
+            for (ni, n) in enumerate(nfermi_grid)
+                for (mi, m) in enumerate(nfermi_grid)
+
+                    fx = @view F[head:tail, mi] # all F in the same kpidx-th K panel
+                    FF = barycheb(order, q, fx, w, x) # the interpolation is independent with the panel length
+
+                    wq = qgrids[ki].wgrid[qi]
+                    #Δ[ki, τi] += dH1(k, q, τ) * FF * wq
+                    Δ[ki, ni] += kernal[ki ,qi ,ni, mi] * FF * wq
+                    @assert isfinite(Δ[ki, ni]) "fail Δ at $ki, $τi with $(Δ[ki, τi]), $FF\n $q for $fx\n $x \n $w\n $q < $(kgrid.panel[kpidx + 1])"
+
+                    # if τi == 1
+                    #     fx_ins = @view F_ins[head:tail] # all F in the same kpidx-th K panel
+                    #     FF = barycheb(order, q, fx_ins, w, x) # the interpolation is independent with the panel length
+                    #     #Δ0[ki] += bare(k, q) * FF * wq
+                    #     Δ0[ki] += kernal_bare[ki, qi] * FF * wq                    
+                    #     @assert isfinite(Δ0[ki]) "fail Δ0 at $ki with $(Δ0[ki])"
+                    # end
+
+                end
+            end
+        end
+    end
+    
+    return Δ/β 
+end
+
+
+
+
+
+
+
 function GG_τ(kgrid, tau)
     GG = zeros(Float64, (length(kgrid.grid), length(tau)))
     for (ki,k) in enumerate(kgrid.grid)
@@ -669,7 +827,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     # display(p)
     # readline()
 
-    Composite_int_kf(1, kpanel_bose, order_int)
+    Composite_int_kf( kpanel_bose, order_int)
 
 
     #println("kgrid: $(kgrid.grid)")

@@ -28,8 +28,12 @@ if abspath(PROGRAM_FILE) == @__FILE__
     kpanel_bose = KPanel(2Nk, 2*kF, 2.1*maxK, minK/100.0)
     kgrid = CompositeGrid(kpanel, order, :cheb)
     qgrids = [CompositeGrid(QPanel(Nk, kF, maxK, minK, k), order, :gaussian) for k in kgrid.grid]
-    kernal_bare, kernal_freq = legendre_dc(bdlr, kgrid, qgrids, kpanel_bose, order_int)
+    #nfermi_grid = [1]
+
+    #kernal_bare, kernal = legendre_dc_2D(nfermi_grid, kgrid, qgrids, kpanel_bose, order_int)
     #kernal_bare, kernal_freq = dH1_freq(kgrid, qgrids, bdlr, fdlr)
+    kernal_bare, kernal_freq = legendre_dc(bdlr, kgrid, qgrids, kpanel_bose, order_int)
+    
     kernal = real(DLR.matfreq2tau(:corr, kernal_freq, bdlr, fdlr.τ, axis=3))
 
     dataFileName = rundir*"/delta_$(WID).dat"
@@ -57,9 +61,27 @@ if abspath(PROGRAM_FILE) == @__FILE__
     Δ = Δ_low + Δ_high
     denorm_dy = dlr_dot(F_low, Δ_low, kgrid,qgrids,fdlr)
     denorm = Normalization(F_ins_low, Δ0_low, kgrid,qgrids) + denorm_dy
+    const kF_label = searchsortedfirst(kgrid.grid, kF)
+    # F_freq = real(DLR.tau2matfreq(:acorr, F, fdlr, nfermi_grid, axis=2))
+    # println(fdlr.n)
+    # Δ_new = calcΔ_freq(F_freq, kernal,kernal_bare, nfermi_grid, kgrid, qgrids)./(-4*π*π)
+    # numer_dy = dlr_dot_freq(F_freq, Δ_new, kgrid, qgrids,nfermi_grid)
+
     Δ0_new, Δ_new = calcΔ(F, kernal,kernal_bare, fdlr, kgrid, qgrids)./(-4*π*π)
     numer_dy = dlr_dot(F, Δ_new, kgrid, qgrids,fdlr)
+    # pic = plot( kgrid.grid,  F_freq[:,1])
+    # pic = plot(kgrid.grid,  Δ_new[:,1])
+
+    # pic = plot( kgrid.grid,  Δ_low[:,1])
+    # pic = plot( kgrid.grid,  Δ_high[:,1] .+  Δ_low[:,1])
+
+
+    # display(pic)
+    # readline()
     numer = numer_dy
+
+
+
     println(numer/denorm)
     outFileName = rundir*"/flow_$(WID).dat"
     f = open(outFileName, "a")

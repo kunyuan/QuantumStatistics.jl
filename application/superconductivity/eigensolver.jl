@@ -112,6 +112,42 @@ function dlr_dot(Δ,Δ_new,kgrid,qgrids, fdlr)
     return sum
 end
 
+function dlr_dot_freq(Δ,Δ_new,kgrid,qgrids, nfermi_grid)
+    result = zeros(Float64, length(Δ[:,1]))
+    for i in 1:length(result)
+        for (ωni,ωn) in enumerate(nfermi_grid)
+            
+            result[i] += Δ[i,ωni]*Δ_new[i,ωni] 
+          
+        end
+    end
+
+    kpidx = 1 # panel index of the kgrid
+    head, tail = idx(kpidx, 1, order), idx(kpidx, order, order) 
+    x = @view kgrid.grid[head:tail]
+    w = @view kgrid.wgrid[head:tail]
+    sum = 0
+    for (qi, q) in enumerate(qgrids[1].grid)
+        
+        if q > kgrid.panel[kpidx + 1]
+            # if q is larger than the end of the current panel, move k panel to the next panel
+            while q > kgrid.panel[kpidx + 1]
+                kpidx += 1
+            end
+            head, tail = idx(kpidx, 1, order), idx(kpidx, order, order) 
+            x = @view kgrid.grid[head:tail]
+            w = @view kgrid.wgrid[head:tail]
+            @assert kpidx <= kgrid.Np
+        end
+        wq = qgrids[1].wgrid[qi]
+        Δ_int1 = @view result[head:tail] # all F in the same kpidx-th K panel
+        DD1 = barycheb(order, q, Δ_int1, w, x) # the interpolation is independent with the panel length
+        #Δ0[ki] += bare(k, q) * FF * wq
+        sum += DD1*wq                    
+        @assert isfinite(sum) "fail normaliztion of Δ0"
+    end
+    return sum/β
+end
 
 
 function Separation(delta0, delta, k::CompositeGrid,  fdlr)
@@ -1068,14 +1104,15 @@ if abspath(PROGRAM_FILE) == @__FILE__
 
 
     Δ0_final_low,Δ0_final_high, Δ_final_low, Δ_final_high,  F, lamu = Implicit_Renorm(delta, delta_0, kernal, kernal_bare, kgrid, qgrids, fdlr)
-    
-    # Δ0_double = interpolate(Δ0_final, kgrid, kgrid_double.grid)
-    # Δ_double = zeros(Float64, (length(kgrid_double.grid), fdlr.size))
-    # for τi in 1:fdlr.size
-    #     Δ_double[:, τi] = interpolate(Δ_final[:, τi], kgrid, kgrid_double.grid)
-    # end
-    # Δ0_final2_low, Δ0_final2_high, Δ_final2_low,Δ_final2_high, F2, lamu2 = Implicit_Renorm( Δ_double, Δ0_double, kernal2, kernal_bare2, kgrid_double, qgrids_double, fdlr)
-    # println("$(lamu2-lamu)")
+    Δ0_final = Δ0_final_low .+ Δ0_final_high
+    Δ_final = Δ_final_low .+ Δ_final_high
+    Δ0_double = interpolate(Δ0_final, kgrid, kgrid_double.grid)
+    Δ_double = zeros(Float64, (length(kgrid_double.grid), fdlr.size))
+    for τi in 1:fdlr.size
+        Δ_double[:, τi] = interpolate(Δ_final[:, τi], kgrid, kgrid_double.grid)
+    end
+    Δ0_final2_low, Δ0_final2_high, Δ_final2_low,Δ_final2_high, F2, lamu2 = Implicit_Renorm( Δ_double, Δ0_double, kernal2, kernal_bare2, kgrid_double, qgrids_double, fdlr)
+    println("$(lamu2-lamu)")
     #Δ0_final, Δ_final, F = Explicit_Solver_err(kernal, kernal2, kernal_bare, kgrid, qgrids, fdlr,fdlr2, bdlr)
     #Δ0_final, Δ_final, F = Explicit_Solver(kernal, kernal_bare, kgrid, qgrids, fdlr, bdlr)
     

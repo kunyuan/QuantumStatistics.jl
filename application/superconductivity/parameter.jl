@@ -5,7 +5,7 @@ using StaticArrays, QuantumStatistics
 
 
 ###### constants ###########
-const test_KL = false
+const test_KL = true
 const WID = 1
 const me = 0.5  # electron mass
 const dim = 3    # dimension (D=2 or 3, doesn't work for other D!!!)
@@ -16,14 +16,14 @@ const rs = 4.0
 const e0 = sqrt(rs*2.0/(9π/4.0)^(1.0/3))  #sqrt(2) electric charge
 const kF = 1.0  #(dim == 3) ? (9π / (2spin))^(1 / 3) / rs : sqrt(4 / spin) / rs
 const EF = 1.0     #kF^2 / (2me)
-const β = 200.0 / kF^2
+const β = 1000.0 / kF^2
 
 
 
-const mass2 = 0.00
+const mass2 =  0.01
 const mom_sep = 0.1
-const mom_sep2=1e-5
-const freq_sep = 10
+const mom_sep2=1.0
+const freq_sep = 0.01
 const channel = 0
 const Weight = SVector{2,Float64}
 const Base.abs(w::Weight) = abs(w[1]) + abs(w[2]) # define abs(Weight)
@@ -42,7 +42,7 @@ const extT_grid = Grid.tauUL(β, 0.00001, 8,8)
 
 ### grid constants ###
 const Nk = 16
-const order = 2
+const order = 4
 const order_int = 16
 const maxK = 10.0 * kF
 const minK =  0.0000001 #/ (β * kF)
