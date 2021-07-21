@@ -5,7 +5,7 @@ using StaticArrays, QuantumStatistics
 
 
 ###### constants ###########
-const test_KL = true
+const test_KL = false
 const WID = 1
 const me = 0.5  # electron mass
 const dim = 3    # dimension (D=2 or 3, doesn't work for other D!!!)
@@ -16,7 +16,7 @@ const rs = 4.0
 const e0 = sqrt(rs*2.0/(9π/4.0)^(1.0/3))  #sqrt(2) electric charge
 const kF = 1.0  #(dim == 3) ? (9π / (2spin))^(1 / 3) / rs : sqrt(4 / spin) / rs
 const EF = 1.0     #kF^2 / (2me)
-const β = 1000.0 / kF^2
+const β = 10000.0 / kF^2
 
 
 
