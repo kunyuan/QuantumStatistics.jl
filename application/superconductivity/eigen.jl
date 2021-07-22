@@ -201,8 +201,10 @@ function Composite_int_kf( kpanel_bose, int_order)
 
             end
         end
-     if(n==1)
+        if(n==1)
             pic = plot!(l_array[6:end], (l_array.^0 .* (sum .+0* sum_bare))[6:end]  ) #, xlim=(xMin,xMax), ylim=(yMin, yMax))
+            println([sum[i-1] - sum[i] for i in 1:length(sum) if i%2==0][3:7])
+
         else
             pic = plot!(l_array[6:end], (l_array.^0 .* (sum .+0* sum_bare))[6:end]  ) #, xlim=(xMin,xMax), ylim=(yMin, yMax))
         end
@@ -214,6 +216,71 @@ function Composite_int_kf( kpanel_bose, int_order)
     display(pic)
     readline()
     return sum_bare, sum
+end
+
+function checkKLMass( kpanel_bose, int_order)
+    g = e0^2
+    k = kF-1e-6
+    p = kF
+    l_size = 40
+    n = 0
+    diffa, diffe = 8, 38
+
+
+    #massList = [0.5, 0.1, 0.05, 0.01, 0.005, 0.001]
+    massList = [ 0.5*0.5^(i/8.0) for i in 1:160]
+    diffs = zeros(Float64, (length(massList), diffe-diffa+1))
+
+
+    l_array = collect(0:1:l_size-1)
+    grid_int = build_int(k, p ,kpanel_bose, int_order)
+    sum = zeros(Float64, l_size)
+    sum_bare =  zeros(Float64, l_size)
+    pic = plot()
+    for (mi, mass2) in enumerate(massList)
+        for (qi, q) in enumerate(grid_int.grid)
+            legendre_x = (k^2 + p^2 - q^2)/2/k/p
+            if(abs(abs(legendre_x)-1)<1e-12)
+                legendre_x = sign(legendre_x)*1
+            end
+            wq = grid_int.wgrid[qi]
+            for l in 1:l_size
+                sum[l] += Pl(legendre_x, l-1)*4*π*g/q*RPA_mass(q, n, mass2) * wq
+                if(test_KL == true)
+                    sum[l] += -Pl(legendre_x, l-1)*4*π*g/q*RPA(q, n) * wq            
+                end                
+                #sum += q*Pl(legendre_x, channel)*FT_RPA(q, n) * wq
+                #sum += q*Pl(legendre_x, channel)*dH1_bose(q, n) * wq
+                sum_bare[l] += Pl(legendre_x, l-1)*4*π*g*q/(q^2) * wq
+
+
+            end
+        end
+        sum = -sum
+#        pic = plot!(l_array[6:end], (l_array.^0 .* (sum .+0* sum_bare))[6:end]  ) #, xlim=(xMin,xMax), ylim=(yMin, yMax))
+        diffOE = [sum[i-1]+sum[i+1] - 2*sum[i] for i in 2:length(sum)-1][diffa:diffe]
+        diffs[mi, :] = diffOE
+#        println(mass2,diffOE)
+#        display(pic)
+        #readline()
+
+        sum = 0*sum
+        sum_bare = 0 *sum_bare
+    end
+    maxidiffs = [massList[findmax(abs.(diffs[:,l]))[2]] for l in 1:diffe-diffa+1 ]
+    pic2 = plot()
+    for i in 1:diffe-diffa+1
+        plot!(pic2, -log.(massList), diffs[:, i])
+    end
+    display(pic2)
+    #readline()
+    #maxidiffs = -log.(maxidiffs)
+    maxidiffs = maxidiffs .* (l_array[diffa:diffe] .^ 4.0) ./ log.(l_array[diffa:diffe])
+    pic3 = plot(l_array[diffa:diffe], maxidiffs[:])
+    display(pic3)
+    readline()
+
+    return 1.0
 end
 
 
@@ -390,7 +457,7 @@ function RPA(q, n)
     return kernal
 end
 
-function RPA_mass(q, n)
+function RPA_mass(q, n, mass2 = mass2)
     g = e0^2
     kernal = 0.0
     Π = 0.0
@@ -826,9 +893,10 @@ if abspath(PROGRAM_FILE) == @__FILE__
     # p = plot!(fdlr.τ[:], gg_test[ind[1],:])
     # display(p)
     # readline()
-
-    Composite_int_kf( kpanel_bose, order_int)
-
+    checkKLMass(kpanel_bose, order_int)
+    @assert 1==0 "exit"
+    #Composite_int_kf( kpanel_bose, order_int)
+    
 
     #println("kgrid: $(kgrid.grid)")
     #println("kgrid_bose: $(kgrid_bose.grid)")
